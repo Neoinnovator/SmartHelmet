@@ -1,57 +1,48 @@
 # CMI Command Center · Piramid Solutions — PRD
 
 ## Problema original
-El usuario entregó un archivo monolítico `index.html` (143 KB, 415 líneas) de dashboard de monitoreo minero con MQTT real + Leaflet + SVG maps, y solicitó "analiza y mejora esta solución" de forma integral, separando archivos, cambiando look & feel y manteniendo dark/light + la integración MQTT real existente.
+Archivo monolítico `index.html` de dashboard minero con MQTT real + Leaflet + SVG. Usuario pidió: analiza y mejora integral, separa archivos, cambia look & feel, mantén dark/light, mantén integración MQTT real.
 
-## Arquitectura resultante
-Aplicación **estática pura** (sin backend) servida vía `python3 -m http.server 3000`. Separada en tres archivos:
-
-- `/app/index.html` — HTML semántico con ARIA (tablist, tabpanels, aria-selected, aria-live), data-testid en todos los interactivos
-- `/app/styles.css` — Sistema visual "Industrial Amber" (dark: midnight graphite + warm amber; light: warm stone), CSS vars, glass-morphism, micro-animaciones, responsive (sidebar → drawer en móvil)
-- `/app/app.js` — IIFE modular: State / Prefs / Render / Schema / Leaflet / MQTT / UI. Event delegation, keyboard shortcuts, debounce
-- `/app/dist/cmi-standalone.html` — Versión all-in-one embebida (82 KB) para despliegue fácil
+## Arquitectura resultante (app estática)
+- `/app/index.html` (15 KB) — HTML semántico + ARIA + data-testid
+- `/app/styles.css` (32 KB) — Sistema "Industrial Amber", dark/light, responsive
+- `/app/app.js` (49 KB) — IIFE modular: State/Prefs/Render/Schema/Leaflet/MQTT/UI/Sparks/Audio/Demo
+- `/app/assets/` — `piramid.png` + `ilumintech.png` + `helmet.webp` (logos + foto casco reales)
+- `/app/dist/cmi-standalone.html` (166 KB) — All-in-one con assets base64 embebidos
+- `/app/package.json` + `.eslintrc.json` — ESLint setup (0 errores)
 - `/app/original/index.html` — Archivo original del usuario (preservado)
 
-## Integración MQTT (SIN MOCK — real)
-- Broker: `wss://11c2344a8d8b4107a6e0db681599d1a5.s1.eu.hivemq.cloud:8884/mqtt`
-- User/Pass: `Piramid` / `Piramid2026` (provistos por el usuario en su archivo)
-- Topics suscritos: `cmi/helmet/001/sensor|status|gps`
-- Publish: `cmi/helmet/001/cmd` (default, signal, sos, off, recover, status, gps_on/off, gps_status, mandown_on/off, at+csq, cancel)
-- Verificado conectado en vivo — datos reales del casco físico fluyendo (pitch, accel, battery, GPS)
+## Integración MQTT (REAL, sin mock)
+Broker HiveMQ Cloud TLS del usuario. Topics `cmi/helmet/001/{sensor|status|gps}` sub, `cmi/helmet/001/cmd` pub. Verificado conectado en vivo.
 
-## Implementado (16-Abr-2026)
-- ✅ 5 vistas: Operaciones · Mapa Mina · Digital Twin · Seguridad · Plataforma
-- ✅ Sidebar navigation con active indicator (antes: tabs horizontales)
-- ✅ KPIs con accent coloreado
-- ✅ Fleet list con avatar + battery bar + pill de estado + stats compactas
-- ✅ Filtro/búsqueda de flota (tecla `/` o input)
-- ✅ Click en casco → Digital Twin de ese casco específico (multi-helmet)
-- ✅ Dark/Light theme cohesivos con paleta "Industrial Amber" (no purple-gradient slop)
-- ✅ Persistencia localStorage: theme, última vista, mapView, schemaMode
-- ✅ Toast notifications: MQTT conect/error, Man-down detectado, comandos enviados, evacuación
-- ✅ Keyboard shortcuts: 1-5 (vistas), T (tema), / (búsqueda), Esc
-- ✅ Mapa SVG: esquema subterráneo + open-pit con zonas inestables animadas
-- ✅ Leaflet GPS map con capas satelital/calles, markers por estado, popups
-- ✅ Sensores satelitales GNSS en vivo (GSV parsing)
-- ✅ Evacuación masiva (publish 'sos' a todos los cascos)
-- ✅ Reconocer Man-Down
-- ✅ Reconexión MQTT automática con contador de intentos visible
-- ✅ Accesibilidad: ARIA roles, aria-live para alertas/MQTT, focus-visible ring, prefers-reduced-motion
-- ✅ data-testid en todos los elementos interactivos
-- ✅ Responsive: 1920 → 520 px (sidebar → drawer en ≤860px)
+## Implementado
+### v14.0 (16-Abr-2026)
+- 5 vistas (Operaciones · Mapa · Twin · Seguridad · Plataforma), sidebar navigation
+- Tema dark/light persistente, keyboard shortcuts, toast notifications
+- Fleet con avatar/battery/pill/búsqueda, click-to-twin multi-helmet
+- Mapas SVG (underground + open-pit) + Leaflet satelital
+- Reconocer Man-Down, evacuación masiva, reconexión MQTT automática
+- ARIA completo, responsive hasta 520px
 
-## Stack / Tipografía
-- Fuentes: **Figtree** (display/body, underused en dashboards industriales) + **JetBrains Mono** (data)
-- Paleta signature: `--ac: #f5a524` (amber, referencia minera) sobre `--bg-0: #07090f` (graphite)
-- Sin gradients purple-to-violet, sin fonts genéricas (Inter/Roboto)
+### v14.1 (16-Abr-2026) — esta iteración
+- **Assets reales**: logos Piramid + Ilumintech en sidebar, foto del casco real en Digital Twin con anillo animado
+- **Sparklines** (60 samples) para batería / accel / pitch en Digital Twin, canvas con línea+área+dot+valor en vivo
+- **Modo DEMO** — simulador scripted de telemetría con escenarios (geofence breach tick 8, man-down tick 14, recover tick 22). Toggle púrpura en topbar
+- **Alertas sonoras Web Audio API** (3-tone sweep en man-down), toggle en topbar, persistente
+- **Keyboard shortcuts extendidos**: S (sound), D (demo), T (theme), 1-5 (views), / (search)
+- **ESLint** configurado (0 errores), `yarn lint` disponible
 
-## Servicio local
-Servido en `http://localhost:3000/` por `python3 -m http.server 3000` (background).
+## Stack
+Figtree + JetBrains Mono · paleta amber/midnight · mqtt.js 4.3.8 · Leaflet 1.9.4 · ESLint 8
 
-## Backlog / Próximas mejoras sugeridas
-- P1: Replay de datos históricos (TimescaleDB/TDengine)
-- P1: Gráficos de tendencias (sparklines) en Digital Twin
-- P2: Alertas sonoras opcionales para Man-Down
-- P2: Exportar reporte DS594 a PDF
-- P3: Control de turnos y multi-usuario con auth
-- P3: Configuración de umbrales desde UI
+## Servicio
+`python3 -m http.server 3000` (background) en `/app/`
+
+## Backlog
+- P1 Replay histórico con TDengine
+- P1 Sparklines en más métricas (yaw, temperatura ambiente)
+- P2 Export DS594 a PDF
+- P2 Alerta sonora diferenciada por tipo de evento
+- P3 Multi-usuario con auth + roles (supervisor/operador)
+- P3 Configuración de umbrales desde UI
+- P3 Tests E2E con Playwright

@@ -1,0 +1,11 @@
+{
+  "env": { "browser": true, "es2022": true },
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "script" },
+  "globals": { "mqtt": "readonly", "L": "readonly" },
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-undef": "error",
+    "semi": ["error", "always"],
+    "no-console": "off"
+  }
+}

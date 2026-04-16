@@ -150,20 +150,39 @@ ul { list-style: none; }
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 6px 20px;
+  gap: 10px;
+  padding: 0 4px 16px;
   border-bottom: 1px dashed var(--bg-4);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
-.brand-mark {
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--ac-a);
-  color: var(--ac);
+.brand-logo {
+  width: 36px; height: 36px;
+  object-fit: contain;
+  background: #fff;
   border-radius: var(--r-sm);
-  border: 1px solid var(--ac);
-  border-color: rgba(245,165,36,.35);
+  padding: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
+[data-theme="light"] .brand-logo { box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.brand-partners {
+  display: flex;
+  justify-content: center;
+  padding: 0 4px 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px dashed var(--bg-4);
+}
+.brand-partner-logo {
+  max-width: 100%;
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--r-xs);
+  padding: 4px 10px;
+  opacity: .95;
+  transition: opacity var(--t-fast);
+}
+.brand-partner-logo:hover { opacity: 1; }
 .brand-text { line-height: 1.1; }
 .brand-title {
   font-family: var(--fm);
@@ -768,6 +787,44 @@ ul { list-style: none; }
   color: var(--ac);
   flex-shrink: 0;
 }
+
+/* Real helmet photo in Digital Twin */
+.twin-helmet {
+  width: 130px; height: 130px;
+  position: relative;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.twin-helmet img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,.4));
+  position: relative; z-index: 2;
+}
+.twin-helmet-ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--ac);
+  opacity: .3;
+  animation: ring-pulse 3s var(--easing) infinite;
+}
+.twin-helmet-ring::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  border: 1px dashed var(--ac);
+  opacity: .4;
+  animation: ring-spin 20s linear infinite;
+}
+@keyframes ring-pulse {
+  0%, 100% { transform: scale(1); opacity: .3; }
+  50% { transform: scale(1.05); opacity: .55; }
+}
+@keyframes ring-spin {
+  to { transform: rotate(360deg); }
+}
 .twin-inf { flex: 1; min-width: 0; }
 .twin-inf h2 {
   font-size: 24px;
@@ -996,7 +1053,81 @@ ul { list-style: none; }
   .twin-mode { font-size: 22px; padding: 10px 16px; min-width: 100px; }
 }
 
-/* Reduce motion */
+/* -------------------- SPARKLINES -------------------- */
+.sparks { display: flex; flex-direction: column; gap: 10px; }
+.spark-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 70px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bg-3);
+}
+.spark-row:last-child { border-bottom: 0; }
+.spark-lbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tx-3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.spark {
+  width: 100%;
+  height: 36px;
+  display: block;
+}
+.spark-val {
+  font-family: var(--fm);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tx-0);
+  text-align: right;
+}
+
+/* -------------------- DEMO TOGGLE -------------------- */
+.demo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 100px;
+  background: var(--bg-2);
+  border: 1px solid var(--bg-4);
+  color: var(--tx-2);
+  font-family: var(--fm);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  transition: all var(--t-fast);
+}
+.demo-toggle:hover { border-color: var(--bg-5); color: var(--tx-1); }
+.demo-toggle .demo-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--tx-3);
+}
+.demo-toggle[aria-pressed="true"] {
+  background: var(--pu-a);
+  border-color: rgba(180,148,255,.35);
+  color: var(--pu);
+}
+.demo-toggle[aria-pressed="true"] .demo-dot {
+  background: var(--pu);
+  animation: pulse-dot 1.5s infinite;
+}
+
+/* Sound button toggled off */
+#soundBtn[aria-pressed="false"] { opacity: .5; }
+
+/* Responsive topbar adjustments */
+@media (max-width: 1100px) {
+  .demo-toggle span:last-child { display: none; }
+}
+@media (max-width: 520px) {
+  .twin-helmet { width: 84px; height: 84px; }
+}
+
+/* Reduce motion (kept at bottom) */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;

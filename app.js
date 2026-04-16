@@ -270,7 +270,7 @@
     const modeState = w.mdw ? 'cr' : (mode === 'OFF' ? 'off' : 'ok');
 
     const initials = w.nm.split(' ').map((x) => x[0]).join('').slice(0, 2);
-    $('twAv').textContent = initials;
+    // Keep helmet photo constant; initials kept only for accessibility fallback
     $('twName').innerHTML = `${h(w.nm)} <span class="live-pill">LIVE</span>`;
     $('twRole').textContent = `${w.rl} · ${w.id} · Piramid Solutions`;
     $('twHw').textContent = `FW ${w.fw} · CodeCell C6 (ESP32-C3) · Quectel EG912U-GL · BNO085 · VCNL4040`;
@@ -606,7 +606,9 @@
       w.ts = Date.now();
       w.st = w.mdw ? 'cr' : 'ok';
       if (d.gps_sats) w.gS = d.gps_sats;
-      if (!wasMdw && w.mdw) toast('cr', 'MAN-DOWN detectado', `${w.nm} (${w.id})`);
+      Sparks.push(w);
+      if (State.currentView === 2) Sparks.renderAll();
+      if (!wasMdw && w.mdw) { toast('cr', 'MAN-DOWN detectado', `${w.nm} (${w.id})`); Audio.alertManDown(); }
       logPush(`SNS p=${w.p.toFixed(1)} ac=${w.ac.toFixed(1)} ${w.act}`);
       renderAllDebounced();
     }
@@ -616,7 +618,7 @@
         const prev = w.mdw;
         w.mdw = true;
         w.st = 'cr';
-        if (!prev) toast('cr', 'MAN-DOWN', `${w.nm} (${w.id})`);
+        if (!prev) { toast('cr', 'MAN-DOWN', `${w.nm} (${w.id})`); Audio.alertManDown(); }
         renderAllDebounced();
       }
     }
@@ -680,7 +682,7 @@
       if (State.mapView === 'schema') renderSchema();
       else if (State.leaflet.map) { setTimeout(() => { State.leaflet.map.invalidateSize(); updateLeafletMarkers(); }, 200); }
     }
-    if (n === 2) renderTwin();
+    if (n === 2) { renderTwin(); setTimeout(() => Sparks.renderAll(), 50); }
     closeMobileSidebar();
   }
 
@@ -810,6 +812,9 @@
     // Evac
     $('evacBtn').addEventListener('click', toggleEvac);
     $('evacBtn2').addEventListener('click', toggleEvac);
+    // Demo + Sound
+    $('demoBtn').addEventListener('click', () => Demo.toggle());
+    $('soundBtn').addEventListener('click', () => Audio.toggle());
 
     // Event delegation for dynamic content
     document.body.addEventListener('click', (e) => {
@@ -826,6 +831,8 @@
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key >= '1' && e.key <= '5') setView(+e.key - 1);
       else if (e.key.toLowerCase() === 't') toggleTheme();
+      else if (e.key.toLowerCase() === 's') Audio.toggle();
+      else if (e.key.toLowerCase() === 'd') Demo.toggle();
       else if (e.key === '/') { e.preventDefault(); $('fleetSearch').focus(); }
       else if (e.key === 'Escape') { $('fleetSearch').blur(); closeMobileSidebar(); }
     });
@@ -839,7 +846,224 @@
     setInterval(renderAllDebounced, 10000);
   }
 
-  // =============================================================== INIT --
+  // =========================================================================
+  //                              SPARKLINES
+  // =========================================================================
+  const Sparks = {
+    history: { bat: [], acc: [], pit: [] },
+    max: 60,
+
+    push(w) {
+      this.history.bat.push(w.bat);
+      this.history.acc.push(w.ac);
+      this.history.pit.push(w.p);
+      for (const k of Object.keys(this.history)) {
+        if (this.history[k].length > this.max) this.history[k].shift();
+      }
+    },
+
+    draw(canvasId, data, color, fmt) {
+      const el = $(canvasId);
+      if (!el || !data.length) return;
+      const css = getComputedStyle(document.documentElement);
+      const colorV = css.getPropertyValue(color).trim() || '#f5a524';
+      const muteV  = css.getPropertyValue('--bg-4').trim() || '#333';
+
+      const ratio = window.devicePixelRatio || 1;
+      const w = el.clientWidth || 240, h = el.clientHeight || 36;
+      if (el.width !== w * ratio) { el.width = w * ratio; el.height = h * ratio; }
+      const ctx = el.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const min = Math.min(...data), max = Math.max(...data);
+      const range = max - min || 1;
+      const pad = 3;
+      const step = (w - pad * 2) / Math.max(data.length - 1, 1);
+
+      // Baseline
+      ctx.strokeStyle = muteV;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, h - 1);
+      ctx.lineTo(w, h - 1);
+      ctx.stroke();
+
+      // Fill gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, colorV + '55');
+      grad.addColorStop(1, colorV + '00');
+      ctx.fillStyle = grad;
+
+      ctx.beginPath();
+      ctx.moveTo(pad, h - pad);
+      data.forEach((v, i) => {
+        const x = pad + i * step;
+        const y = h - pad - ((v - min) / range) * (h - pad * 2);
+        i === 0 ? ctx.lineTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.lineTo(pad + (data.length - 1) * step, h - pad);
+      ctx.closePath();
+      ctx.fill();
+
+      // Line
+      ctx.strokeStyle = colorV;
+      ctx.lineWidth = 1.6;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = pad + i * step;
+        const y = h - pad - ((v - min) / range) * (h - pad * 2);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Last-point dot
+      const last = data[data.length - 1];
+      const lx = pad + (data.length - 1) * step;
+      const ly = h - pad - ((last - min) / range) * (h - pad * 2);
+      ctx.fillStyle = colorV;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const valEl = $(canvasId.replace('sp', 'sp') + 'V');
+      if (valEl && typeof fmt === 'function') valEl.textContent = fmt(last);
+    },
+
+    renderAll() {
+      this.draw('spBat', this.history.bat, '--ok', (v) => Math.round(v) + '%');
+      this.draw('spAcc', this.history.acc, '--cy', (v) => v.toFixed(2));
+      this.draw('spPit', this.history.pit, '--ac', (v) => v.toFixed(1) + '°');
+    },
+  };
+
+  // =========================================================================
+  //                              AUDIO ALERTS
+  // =========================================================================
+  const Audio = {
+    enabled: true,
+    ctx: null,
+
+    ensure() {
+      if (!this.ctx) {
+        try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch { /* no audio */ }
+      }
+    },
+
+    beep(freq = 880, dur = 0.12, vol = 0.18) {
+      if (!this.enabled) return;
+      this.ensure();
+      if (!this.ctx) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + dur);
+    },
+
+    alertManDown() {
+      if (!this.enabled) return;
+      this.beep(880, 0.15);
+      setTimeout(() => this.beep(660, 0.15), 180);
+      setTimeout(() => this.beep(880, 0.22), 360);
+    },
+
+    toggle() {
+      this.enabled = !this.enabled;
+      const btn = $('soundBtn');
+      btn.setAttribute('aria-pressed', this.enabled ? 'true' : 'false');
+      Prefs.update({ sound: this.enabled });
+      if (this.enabled) this.beep(1000, 0.08, 0.1);
+      return this.enabled;
+    },
+  };
+
+  // =========================================================================
+  //                                DEMO MODE
+  // =========================================================================
+  const Demo = {
+    active: false,
+    timer: null,
+    tick: 0,
+
+    toggle() {
+      this.active = !this.active;
+      const btn = $('demoBtn');
+      btn.setAttribute('aria-pressed', this.active ? 'true' : 'false');
+      if (this.active) {
+        this.start();
+        toast('wr', 'MODO DEMO activado', 'Datos simulados para presentación');
+        logPush('DEMO ON — simulando telemetría');
+      } else {
+        this.stop();
+        toast('ok', 'MODO DEMO desactivado', 'Volviendo a datos reales MQTT');
+        logPush('DEMO OFF');
+      }
+      Prefs.update({ demo: this.active });
+    },
+
+    start() {
+      this.stop();
+      this.tick = 0;
+      this.timer = setInterval(() => this.step(), 1200);
+    },
+
+    stop() { if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+
+    step() {
+      this.tick++;
+      const w = State.workers[0];
+      if (!w) return;
+
+      // Oscillating realistic data
+      const t = this.tick;
+      w.p  = 160 + Math.sin(t * 0.3) * 8 + (Math.random() * 2 - 1);
+      w.r  = Math.sin(t * 0.2) * 5;
+      w.y  = (t * 2) % 360;
+      w.ac = 9.6 + Math.sin(t * 0.4) * 0.5 + Math.random() * 0.2;
+      w.bat = Math.max(0, w.bat - (Math.random() > 0.85 ? 1 : 0));
+      w.act = ['walking', 'still', 'driving', 'walking'][t % 4];
+      w.lat = (-27.366 + Math.sin(t * 0.1) * 0.002).toFixed(5);
+      w.lon = (-70.332 + Math.cos(t * 0.1) * 0.002).toFixed(5);
+      w.gF = true; w.gS = String(6 + Math.floor(Math.random() * 5));
+      w.ts = Date.now();
+
+      // Scripted scenarios
+      if (t === 8) {
+        // Scenario: geofence breach on worker 2
+        State.workers[2].st = 'wr';
+        toast('wr', 'Geofence breach', 'Pedro Aravena entró a Zona Z4 restringida');
+        logPush('⚠ Geofence breach · Pedro Aravena · Z4');
+      }
+      if (t === 14) {
+        // Scenario: Man-Down on worker 0 (the live one)
+        w.mdw = true; w.st = 'cr'; w.p = 48; w.ac = 2.3; w.act = 'still';
+        toast('cr', 'MAN-DOWN detectado', 'Luis Campusano (CMI-001) — pitch 48°');
+        Audio.alertManDown();
+        logPush('🚨 MAN-DOWN · CMI-001 · pitch=48°');
+      }
+      if (t === 22) {
+        w.mdw = false; w.st = 'ok'; w.p = 168;
+        toast('ok', 'Man-down reconocido', 'Operador reportó estado normal');
+        logPush('✔ Man-down resuelto · CMI-001');
+      }
+      if (t === 30) {
+        this.tick = 0; // loop scenarios
+      }
+
+      Sparks.push(w);
+      if (State.currentView === 2) Sparks.renderAll();
+      renderAllDebounced();
+    },
+  };
+
+
   function init() {
     const prefs = Prefs.load();
     if (prefs.theme) document.documentElement.dataset.theme = prefs.theme;
@@ -860,6 +1084,24 @@
     // Fix theme icon
     if (document.documentElement.dataset.theme === 'light') {
       $('themeIco').innerHTML = '<path fill="currentColor" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0-5v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1m11.4-11.4 2.1-2.1"/>';
+    }
+
+    // Restore sound preference (default ON)
+    if (prefs.sound === false) {
+      Audio.enabled = false;
+      $('soundBtn').setAttribute('aria-pressed', 'false');
+    } else {
+      $('soundBtn').setAttribute('aria-pressed', 'true');
+    }
+
+    // Seed initial sparkline history
+    const w0 = State.workers[0];
+    if (w0) {
+      for (let i = 0; i < 20; i++) {
+        Sparks.history.bat.push(w0.bat + (Math.random() * 2 - 1));
+        Sparks.history.acc.push(9.5 + Math.sin(i * .5) * .3);
+        Sparks.history.pit.push(165 + Math.sin(i * .4) * 6);
+      }
     }
   }
 

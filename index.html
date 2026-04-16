@@ -21,17 +21,14 @@
 
     <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="28" height="28" role="img" aria-label="Piramid Solutions">
-            <path d="M16 3 L29 27 L3 27 Z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-            <path d="M16 11 L22 24 L10 24 Z" fill="currentColor" opacity=".4"/>
-            <circle cx="16" cy="18" r="1.6" fill="currentColor"/>
-          </svg>
-        </div>
+        <img src="assets/piramid.png" alt="Piramid Solutions" class="brand-logo brand-logo-piramid" />
         <div class="brand-text">
           <div class="brand-title">CMI</div>
           <div class="brand-sub">Command Center</div>
         </div>
+      </div>
+      <div class="brand-partners" aria-label="Partners">
+        <img src="assets/ilumintech.png" alt="Ilumintech" class="brand-partner-logo" />
       </div>
 
       <nav class="nav" role="tablist" aria-label="Vistas">
@@ -82,6 +79,15 @@
           <h1 id="viewTitle">Operaciones</h1>
           <p id="viewSub">Vista general de flota, alertas y comandos de supervisor</p>
         </div>
+
+        <button class="demo-toggle" id="demoBtn" aria-pressed="false" title="Modo demo: simula eventos cuando MQTT está offline" data-testid="demo-btn">
+          <span class="demo-dot"></span>
+          <span>DEMO</span>
+        </button>
+
+        <button class="icon-btn" id="soundBtn" aria-label="Alertas sonoras" title="Alertas sonoras (S)" data-testid="sound-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" id="soundIco" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3Zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4Zm-2.5-9v2.1a7 7 0 0 1 0 13.8V21a9 9 0 0 0 0-18Z"/></svg>
+        </button>
 
         <div class="topbar-search" role="search">
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M10 2a8 8 0 1 0 5.3 14l5.2 5.2 1.5-1.5-5.2-5.2A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></svg>
@@ -165,7 +171,10 @@
 
         <section class="view" id="p2" role="tabpanel" aria-labelledby="nav-twin" hidden>
           <div class="twin-hero">
-            <div class="twin-av" id="twAv">LC</div>
+            <div class="twin-helmet" aria-hidden="true">
+              <img src="assets/helmet.webp" alt="" id="twHelmet" />
+              <div class="twin-helmet-ring"></div>
+            </div>
             <div class="twin-inf">
               <h2 id="twName">Luis Campusano <span class="live-pill">LIVE</span></h2>
               <p id="twRole">Ing. Innovación · CMI-001 · Piramid Solutions</p>
@@ -178,25 +187,34 @@
 
           <div class="grid-2">
             <article class="card">
-              <header class="card-hd"><h3 class="card-t">Sensores IMU</h3><span class="chip chip-bl">BNO085</span></header>
-              <div class="kpi-grid kpi-4" id="twImu"></div>
+              <header class="card-hd"><h3 class="card-t">Tendencias recientes</h3><span class="chip chip-muted">últimos 60 samples</span></header>
+              <div class="sparks">
+                <div class="spark-row"><span class="spark-lbl">Batería</span><canvas class="spark" id="spBat" width="240" height="36"></canvas><span class="spark-val" id="spBatV">—</span></div>
+                <div class="spark-row"><span class="spark-lbl">Accel</span><canvas class="spark" id="spAcc" width="240" height="36"></canvas><span class="spark-val" id="spAccV">—</span></div>
+                <div class="spark-row"><span class="spark-lbl">Pitch</span><canvas class="spark" id="spPit" width="240" height="36"></canvas><span class="spark-val" id="spPitV">—</span></div>
+              </div>
             </article>
             <article class="card">
-              <header class="card-hd"><h3 class="card-t">GPS / GNSS</h3><span class="chip chip-cy">EG912U-GL</span></header>
-              <div class="kpi-grid kpi-4" id="twGps"></div>
+              <header class="card-hd"><h3 class="card-t">Sensores IMU</h3><span class="chip chip-bl">BNO085</span></header>
+              <div class="kpi-grid kpi-4" id="twImu"></div>
             </article>
           </div>
 
           <div class="grid-2">
             <article class="card">
+              <header class="card-hd"><h3 class="card-t">GPS / GNSS</h3><span class="chip chip-cy">EG912U-GL</span></header>
+              <div class="kpi-grid kpi-4" id="twGps"></div>
+            </article>
+            <article class="card">
               <header class="card-hd"><h3 class="card-t">Conectividad</h3></header>
               <div class="kpi-grid kpi-2" id="twConn"></div>
             </article>
-            <article class="card">
-              <header class="card-hd"><h3 class="card-t">Log de eventos</h3><span class="chip chip-muted">MQTT</span></header>
-              <div class="log" id="twLog" aria-live="polite">Esperando datos del casco…</div>
-            </article>
           </div>
+
+          <article class="card">
+            <header class="card-hd"><h3 class="card-t">Log de eventos</h3><span class="chip chip-muted">MQTT</span></header>
+            <div class="log" id="twLog" aria-live="polite">Esperando datos del casco…</div>
+          </article>
 
           <div class="sec-h"><span>Comandos técnicos</span></div>
           <div class="cmd-grid cmd-grid-wide" id="cmdGridTech"></div>
