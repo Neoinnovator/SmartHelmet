@@ -1,0 +1,16 @@
+{
+  "name": "cmi-frontend",
+  "version": "14.1.0",
+  "private": true,
+  "description": "CMI Command Center — Piramid Solutions (static frontend)",
+  "scripts": {
+    "start": "serve -s public -l tcp://0.0.0.0:3000 --no-clipboard --no-port-switching",
+    "lint": "eslint public/app.js"
+  },
+  "dependencies": {
+    "serve": "14.2.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

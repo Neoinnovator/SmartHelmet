@@ -6,10 +6,12 @@
   'use strict';
 
   // ---------------------------------------------------------------- Config --
+  // MQTT credentials are loaded at runtime from /api/config (backend env).
+  // Defaults below are fallbacks only (e.g. when running fully static).
   const CFG = {
-    mqttUrl: 'wss://11c2344a8d8b4107a6e0db681599d1a5.s1.eu.hivemq.cloud:8884/mqtt',
-    mqttUser: 'Piramid',
-    mqttPass: 'Piramid2026',
+    mqttUrl: '',
+    mqttUser: '',
+    mqttPass: '',
     topics: {
       sensor: 'cmi/helmet/001/sensor',
       status: 'cmi/helmet/001/status',
@@ -20,6 +22,21 @@
     logMax: 80,
     mineCenter: { lat: -27.3668, lon: -70.3322 },
   };
+
+  async function loadRuntimeConfig() {
+    try {
+      const r = await fetch('/api/config', { cache: 'no-store' });
+      if (!r.ok) throw new Error('status ' + r.status);
+      const c = await r.json();
+      CFG.mqttUrl  = c.mqttUrl  || CFG.mqttUrl;
+      CFG.mqttUser = c.mqttUser || CFG.mqttUser;
+      CFG.mqttPass = c.mqttPass || CFG.mqttPass;
+      return true;
+    } catch (e) {
+      console.warn('[CMI] /api/config failed, MQTT will stay offline:', e.message);
+      return false;
+    }
+  }
 
   const CMD_SUP = [
     { v: 'default', l: 'Default', cls: 'cmd-ok' },
@@ -1064,7 +1081,7 @@
   };
 
 
-  function init() {
+  async function init() {
     const prefs = Prefs.load();
     if (prefs.theme) document.documentElement.dataset.theme = prefs.theme;
 
@@ -1074,7 +1091,15 @@
     renderAll();
     renderSchema();
     bind();
-    connectMqtt();
+
+    // Load MQTT creds from backend env (not hardcoded)
+    await loadRuntimeConfig();
+    if (CFG.mqttUrl) {
+      connectMqtt();
+    } else {
+      setMqttStatus('off', 'NO CONFIG');
+      logPush('Sin credenciales MQTT — activa DEMO para simular');
+    }
 
     // Restore last view & map
     if (typeof prefs.view === 'number') setView(prefs.view);

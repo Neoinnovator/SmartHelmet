@@ -46,3 +46,11 @@ Figtree + JetBrains Mono · paleta amber/midnight · mqtt.js 4.3.8 · Leaflet 1.
 - P3 Multi-usuario con auth + roles (supervisor/operador)
 - P3 Configuración de umbrales desde UI
 - P3 Tests E2E con Playwright
+
+## v14.2 (16-Abr-2026) — Deployment-ready
+- Reestructurado a `/app/frontend/` + `/app/backend/` como espera Emergent
+- **Backend FastAPI mínimo**: `/api/config` sirve credenciales MQTT desde env (resuelve blocker de secrets hardcoded), `/api/health` para checks
+- **Frontend** servido con `serve` npm package via `yarn start` (supervisor-managed en puerto 3000)
+- `app.js` ahora hace `fetch('/api/config')` en runtime antes de conectar MQTT
+- Supervisor: backend + frontend + mongodb todos RUNNING, preview URL live
+- Lista para botón Deploy de Emergent (50 créditos/mes, redeploys ilimitados)
