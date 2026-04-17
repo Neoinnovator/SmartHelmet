@@ -198,8 +198,9 @@ async def analytics_report(payload: AnalyticsInput) -> dict[str, Any]:
         "Genera el reporte en markdown siguiendo exactamente el formato definido."
     )
 
+    response: str = ""
     try:
-        response: str = await asyncio.wait_for(
+        response = await asyncio.wait_for(
             chat.send_message(UserMessage(text=prompt)),
             timeout=50,
         )
@@ -306,8 +307,9 @@ async def predictive(payload: AnalyticsInput) -> dict[str, Any]:
         f"EXPOSICIÓN:\n{payload.exposure}\n\nResponde SOLO el JSON."
     )
 
+    raw: str = ""
     try:
-        raw: str = await asyncio.wait_for(
+        raw = await asyncio.wait_for(
             chat.send_message(UserMessage(text=prompt)),
             timeout=40,
         )
@@ -345,8 +347,9 @@ async def prescriptive(payload: AnalyticsInput) -> dict[str, Any]:
         system_message=sys,
     ).with_model("gemini", "gemini-2.5-flash")
     prompt = f"Datos:\n{payload.fleet}\nIncidentes:\n{payload.incidents}\nExposición:\n{payload.exposure}\nResponde SOLO JSON."
+    raw: str = ""
     try:
-        raw: str = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=40)
+        raw = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=40)
     except Exception as err:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Gemini error: {err}") from err
     import json as _json
