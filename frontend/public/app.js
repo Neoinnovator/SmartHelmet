@@ -664,6 +664,7 @@
       w.bat = d.battery_pct ?? w.bat;
       w.lat = d.lat || '';
       w.lon = d.lon || '';
+      if (d.mode) { w.mode = d.mode; updateHelmetMode(d.mode); }
       const wasMdw = w.mdw;
       w.mdw = d.man_down === true || d.man_down === 'true';
       w.gF = !!d.lat;
@@ -677,7 +678,10 @@
       renderAllDebounced();
     }
     else if (topic.includes('/status')) {
-      logPush('STS ' + (d.event || ''));
+      const ev = d.event || d.mode || '';
+      logPush('STS ' + ev);
+      if (d.mode) { updateHelmetMode(d.mode); }
+      if (ev) pushCmdFeedback('in', ev, true);
       if (d.alert === 'man_down') {
         const prev = w.mdw;
         w.mdw = true;
@@ -720,9 +724,45 @@
     const { client, connected } = State.mqtt;
     if (client && connected) client.publish(CFG.topics.cmd, c);
     logPush('CMD → ' + c);
+    pushCmdFeedback('out', c, connected);
+    // Visual ripple on the clicked button
+    const btn = document.querySelector(`[data-cmd="${c}"]`);
+    if (btn) { btn.classList.add('is-flash'); setTimeout(() => btn.classList.remove('is-flash'), 600); }
     toast(connected ? 'ok' : 'wr',
           connected ? 'Comando enviado' : 'Comando simulado',
-          `${c}${connected ? '' : ' (MQTT offline)'}`);
+          `${c}${connected ? ' → esperando ACK del casco...' : ' (MQTT offline)'}`);
+  }
+
+  function pushCmdFeedback(kind, cmd, ok = true) {
+    const el = $('cmdFeedback');
+    if (!el) return;
+    const time = new Date().toLocaleTimeString('es-CL');
+    let row = '';
+    if (kind === 'out') {
+      row = `<div class="fb-row fb-row-out"><span class="fb-time">${time}</span><span class="fb-arrow">→</span><span class="fb-cmd">${h(cmd)}</span><span class="fb-tag ${ok ? 'fb-tag-ok' : 'fb-tag-wr'}">${ok ? 'ENVIADO' : 'OFFLINE'}</span></div>`;
+    } else {
+      row = `<div class="fb-row fb-row-in"><span class="fb-time">${time}</span><span class="fb-arrow">←</span><span class="fb-cmd">${h(cmd)}</span><span class="fb-tag fb-tag-ack">ACK</span></div>`;
+    }
+    // Remove empty state if present
+    const empty = el.querySelector('.cmd-feedback-empty');
+    if (empty) empty.remove();
+    el.insertAdjacentHTML('afterbegin', row);
+    // Cap to 5 rows
+    const rows = el.querySelectorAll('.fb-row');
+    if (rows.length > 5) rows[rows.length - 1].remove();
+  }
+
+  function updateHelmetMode(mode) {
+    const pill = $('modePill');
+    const now = $('modeNow');
+    if (!pill || !now) return;
+    now.textContent = (mode || '—').toUpperCase();
+    const state = mode === 'sos' ? 'cr'
+              : mode === 'signal' ? 'wr'
+              : mode === 'off' ? 'off'
+              : mode === 'default' ? 'ok'
+              : 'bl';
+    pill.dataset.mode = state;
   }
 
   // =========================================================================

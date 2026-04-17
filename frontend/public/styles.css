@@ -1569,3 +1569,78 @@ ul { list-style: none; }
   .brand-row .brand-logo { width: 42px; height: 32px; }
   .brand-title { font-size: 16px; }
 }
+
+/* -------------------- COMMAND MODE PILL & FEEDBACK -------------------- */
+.mode-pill {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .8px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--tx-2);
+  transition: all var(--t-fast);
+  white-space: nowrap;
+}
+.mode-pill strong {
+  font-size: 11.5px;
+  font-weight: 800;
+  margin-left: 4px;
+  letter-spacing: 1px;
+}
+.mode-pill[data-mode="ok"]  { background: var(--ok-a); color: var(--ok); }
+.mode-pill[data-mode="wr"]  { background: var(--wr-a); color: var(--wr); }
+.mode-pill[data-mode="cr"]  { background: var(--cr-a); color: var(--cr); animation: blink-urgent .7s infinite; }
+.mode-pill[data-mode="bl"]  { background: var(--bl-a); color: var(--bl); }
+.mode-pill[data-mode="off"] { background: var(--bg-2); color: var(--tx-3); }
+
+.cmd-feedback {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-0);
+  border: 1px solid var(--bg-4);
+  border-radius: var(--r-sm);
+  font-family: var(--fm);
+  font-size: 11.5px;
+  min-height: 62px;
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cmd-feedback-empty { color: var(--tx-3); font-size: 11px; }
+.fb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  animation: fade-up .25s var(--easing);
+}
+.fb-time { color: var(--tx-3); font-size: 10px; min-width: 72px; }
+.fb-arrow { font-weight: 700; font-size: 13px; }
+.fb-row-out .fb-arrow { color: var(--ac); }
+.fb-row-in  .fb-arrow { color: var(--ok); }
+.fb-cmd { flex: 1; color: var(--tx-0); font-weight: 700; text-transform: uppercase; letter-spacing: .8px; font-size: 11px; }
+.fb-tag {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .8px;
+}
+.fb-tag-ok  { background: var(--ac-a); color: var(--ac); }
+.fb-tag-ack { background: var(--ok-a); color: var(--ok); }
+.fb-tag-wr  { background: var(--wr-a); color: var(--wr); }
+
+/* Flash animation on command button click */
+.cmd.is-flash {
+  animation: cmd-flash .55s var(--easing);
+}
+@keyframes cmd-flash {
+  0%   { box-shadow: 0 0 0 0 currentColor; transform: scale(.96); background: currentColor; }
+  30%  { box-shadow: 0 0 0 6px transparent; transform: scale(1.03); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+.cmd.is-flash::before { opacity: .2 !important; }

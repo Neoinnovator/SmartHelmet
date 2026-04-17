@@ -124,9 +124,15 @@
             <article class="card" aria-labelledby="cmdTitle">
               <header class="card-hd">
                 <h2 class="card-t" id="cmdTitle">Comandos supervisor</h2>
-                <span class="chip chip-muted">Helmet <span id="cmdTarget">001</span></span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span class="chip chip-muted">Helmet <span id="cmdTarget">001</span></span>
+                  <span class="mode-pill" id="modePill" data-mode="off">MODO: <strong id="modeNow">—</strong></span>
+                </div>
               </header>
               <div class="cmd-grid" id="cmdGrid"></div>
+              <div class="cmd-feedback" id="cmdFeedback" aria-live="polite">
+                <div class="cmd-feedback-empty">Los comandos enviados aparecerán aquí · <span style="color:var(--ok)">● casco LIVE</span></div>
+              </div>
               <button class="btn-evac" id="evacBtn" data-testid="evac-btn">
                 <span class="evac-ico" aria-hidden="true">⚠</span>
                 <span class="evac-lbl">ACTIVAR EVACUACIÓN</span>
