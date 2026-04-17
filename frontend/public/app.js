@@ -95,7 +95,7 @@
     workers: [],
     currentView: 0,
     selectedWorker: 0,      // index in workers array (for Digital Twin)
-    mqtt: { client: null, connected: false, attempts: 0 },
+    mqtt: { client: null, connected: false, attempts: 0, pending: [] },
     mapView: 'schema',      // 'schema' | 'gps'
     schemaMode: 'underground', // 'underground' | 'openpit'
     leaflet: { map: null, markers: [] },
@@ -640,33 +640,46 @@
       username: CFG.mqttUser,
       password: CFG.mqttPass,
       rejectUnauthorized: false,
-      reconnectPeriod: 5000,
+      reconnectPeriod: 3000,
+      connectTimeout: 8000,
+      keepalive: 30,
+      clean: true,
+      clientId: 'cmi-web-' + Math.random().toString(16).slice(2, 10),
     });
 
     client.on('connect', () => {
       setMqttStatus('on', 'LIVE');
       State.mqtt.attempts = 0;
-      client.subscribe(CFG.topics.sensor);
-      client.subscribe(CFG.topics.status);
-      client.subscribe(CFG.topics.gps);
+      client.subscribe(CFG.topics.sensor, { qos: 0 });
+      client.subscribe(CFG.topics.status, { qos: 1 });
+      client.subscribe(CFG.topics.gps, { qos: 0 });
       logPush('MQTT conectado · suscrito a cmi/helmet/001/*');
       toast('ok', 'MQTT', 'Conectado a HiveMQ Cloud');
+      flushPendingCmds();  // auto-envía cualquier comando encolado mientras estaba offline
       renderAllDebounced();
     });
 
     client.on('error', (err) => {
       setMqttStatus('off', 'ERROR');
       logPush('MQTT error: ' + (err?.message || 'unknown'));
+      console.error('[MQTT]', err);
     });
 
     client.on('close', () => {
       setMqttStatus('off', 'OFFLINE');
-      logPush('MQTT desconectado');
+      logPush('MQTT cerrado · intentando reconectar...');
       renderAllDebounced();
     });
 
+    client.on('offline', () => {
+      setMqttStatus('off', 'OFFLINE');
+      logPush('MQTT offline');
+    });
+
     client.on('reconnect', () => {
+      State.mqtt.attempts++;
       setMqttStatus('retry', 'RECONECTANDO');
+      logPush(`MQTT reintento #${State.mqtt.attempts}`);
     });
 
     client.on('message', (topic, msg) => handleMessage(topic, msg));
@@ -748,16 +761,51 @@
   }
 
   function publishCmd(c) {
-    const { client, connected } = State.mqtt;
-    if (client && connected) client.publish(CFG.topics.cmd, c);
-    logPush('CMD → ' + c);
-    pushCmdFeedback('out', c, connected);
+    const client = State.mqtt.client;
+    // Use the mqtt.js client's real `connected` property (source of truth)
+    // instead of the cached status flag — the latter can lag a reconnect cycle.
+    const live = !!(client && client.connected);
+
+    if (live) {
+      // QoS 1 = at-least-once delivery + optional callback for visibility
+      client.publish(CFG.topics.cmd, String(c), { qos: 1 }, (err) => {
+        if (err) {
+          logPush('ERR publish: ' + err.message);
+          toast('cr', 'Error publicando', err.message);
+        } else {
+          logPush('PUB ok → ' + c);
+        }
+      });
+      logPush('CMD → ' + c);
+      pushCmdFeedback('out', c, true);
+      toast('ok', 'Comando enviado', `${c} → esperando ACK del casco...`);
+    } else {
+      // Queue the command and auto-flush once the client reconnects
+      State.mqtt.pending = State.mqtt.pending || [];
+      State.mqtt.pending.push(c);
+      logPush('CMD encolado (reconectando): ' + c);
+      pushCmdFeedback('out', c, false);
+      toast('wr', 'Reconectando MQTT…',
+            `Comando "${c}" encolado, se enviará al reconectar (${State.mqtt.pending.length} pendiente${State.mqtt.pending.length > 1 ? 's' : ''})`);
+    }
     // Visual ripple on the clicked button
     const btn = document.querySelector(`[data-cmd="${c}"]`);
     if (btn) { btn.classList.add('is-flash'); setTimeout(() => btn.classList.remove('is-flash'), 600); }
-    toast(connected ? 'ok' : 'wr',
-          connected ? 'Comando enviado' : 'Comando simulado',
-          `${c}${connected ? ' → esperando ACK del casco...' : ' (MQTT offline)'}`);
+  }
+
+  function flushPendingCmds() {
+    const client = State.mqtt.client;
+    if (!client || !client.connected) return;
+    const queue = State.mqtt.pending || [];
+    if (!queue.length) return;
+    const count = queue.length;
+    while (queue.length) {
+      const c = queue.shift();
+      client.publish(CFG.topics.cmd, String(c), { qos: 1 });
+      logPush('CMD enviado (diferido) → ' + c);
+      pushCmdFeedback('out', c, true);
+    }
+    toast('ok', 'Comandos enviados', `${count} comando${count > 1 ? 's' : ''} diferido${count > 1 ? 's' : ''} al reconectar`);
   }
 
   function pushCmdFeedback(kind, cmd, ok = true) {
