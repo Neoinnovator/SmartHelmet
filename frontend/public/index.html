@@ -135,7 +135,7 @@
               </div>
               <button class="btn-evac" id="evacBtn" data-testid="evac-btn">
                 <span class="evac-ico" aria-hidden="true">⚠</span>
-                <span class="evac-lbl">ACTIVAR EVACUACIÓN</span>
+                <span class="evac-lbl">ACTIVAR EVACUACIÓN (SOS)</span>
               </button>
             </article>
           </div>
@@ -276,12 +276,30 @@
         <!-- ============== P5: ANALÍTICA IA ============== -->
         <section class="view" id="p5" role="tabpanel" aria-labelledby="nav-analytics" hidden>
           <div class="subtabs" role="tablist" aria-label="Vistas de analítica">
-            <button class="subtab is-on" data-sub="stats" data-testid="sub-stats">📊 Estadísticas</button>
-            <button class="subtab" data-sub="pred" data-testid="sub-pred">🔮 Predictiva</button>
-            <button class="subtab" data-sub="presc" data-testid="sub-presc">⚡ Prescriptiva</button>
-            <button class="subtab" data-sub="logs" data-testid="sub-logs">📜 Logs históricos</button>
-            <button class="subtab" data-sub="chat" data-testid="sub-chat">💬 Chat IA</button>
-            <button class="subtab" data-sub="report" data-testid="sub-report">📄 Reporte HSE</button>
+            <button class="subtab is-on" data-sub="stats" data-testid="sub-stats">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M3 3h2v18H3V3Zm4 10h3v8H7v-8Zm5-6h3v14h-3V7Zm5 3h3v11h-3V10Z"/></svg>
+              <span>Estadísticas</span>
+            </button>
+            <button class="subtab" data-sub="pred" data-testid="sub-pred">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M3 17l6-6 4 4 8-8v4h2V3h-8v2h4l-6 6-4-4-8 8z"/></svg>
+              <span>Predictiva</span>
+            </button>
+            <button class="subtab" data-sub="presc" data-testid="sub-presc">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M12 2l-8 12h6l-2 8 8-12h-6l2-8z"/></svg>
+              <span>Prescriptiva</span>
+            </button>
+            <button class="subtab" data-sub="logs" data-testid="sub-logs">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm-1 7V3.5L18.5 9H13ZM8 13h8v2H8v-2Zm0 4h8v2H8v-2Z"/></svg>
+              <span>Logs históricos</span>
+            </button>
+            <button class="subtab" data-sub="chat" data-testid="sub-chat">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2Zm-3 10H7v-2h10v2Zm0-3H7V7h10v2Z"/></svg>
+              <span>Chat IA</span>
+            </button>
+            <button class="subtab" data-sub="report" data-testid="sub-report">
+              <svg viewBox="0 0 24 24" class="sub-ico" aria-hidden="true"><path fill="currentColor" d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-2 14H7v-2h10v2Zm0-4H7v-2h10v2Zm0-4H7V7h10v2Z"/></svg>
+              <span>Reporte HSE</span>
+            </button>
           </div>
 
           <!-- Subtab: Estadísticas -->
@@ -308,7 +326,15 @@
             <article class="card">
               <header class="card-hd">
                 <h3 class="card-t">Histórico por trabajador</h3>
-                <select id="anWorker" class="select-ctrl" aria-label="Seleccionar trabajador" data-testid="an-worker-select"></select>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                  <select id="anWorker" class="select-ctrl" aria-label="Seleccionar trabajador" data-testid="an-worker-select"></select>
+                  <select id="anPeriod" class="select-ctrl select-ctrl-sm" aria-label="Período" data-testid="an-period">
+                    <option value="24">Últimas 24h</option>
+                    <option value="168">Últimos 7 días</option>
+                    <option value="720">Últimos 30 días</option>
+                    <option value="2160" selected>Últimos 3 meses</option>
+                  </select>
+                </div>
               </header>
               <div class="kpi-grid kpi-4" id="anWorkerKpis"></div>
               <div class="sparks">

@@ -119,15 +119,33 @@ def _summarize(series: dict[str, list[dict[str, Any]]], incidents_count: int) ->
 
 @app.get("/api/history/{helmet_id}")
 def history(helmet_id: str, hours: int = 24) -> dict[str, Any]:
-    """Stable 24h synthetic history for a helmet (deterministic for demo)."""
+    """Synthetic history for a helmet.
+
+    Granularity adapts to range to keep payload size manageable:
+      <= 48h  → 10-min steps (144 points)
+      <= 168h → 1-hour steps (168 points, 7 días)
+      <= 720h → 3-hour steps (240 points, 30 días)
+      > 720h  → 6-hour steps (up to 360 points, 90 días)
+    """
+    hours = max(1, min(hours, 2160))  # cap at 90 days
     seed = _seed_from(helmet_id)
-    points = min(max(hours, 1), 48) * 6  # 10-min granularity
+    if hours <= 48:
+        step_sec = 600   # 10 min
+    elif hours <= 168:
+        step_sec = 3600  # 1 h
+    elif hours <= 720:
+        step_sec = 10800  # 3 h
+    else:
+        step_sec = 21600  # 6 h
+    points = max(1, (hours * 3600) // step_sec)
+
     series = _build_series(points, seed)
     incidents = _build_incidents(seed, points)
     return {
         "helmet_id": helmet_id,
         "range_hours": hours,
-        "granularity_sec": 600,
+        "granularity_sec": step_sec,
+        "point_count": points,
         "battery": series["battery"],
         "accel": series["accel"],
         "pitch": series["pitch"],
@@ -135,6 +153,71 @@ def history(helmet_id: str, hours: int = 24) -> dict[str, Any]:
         "incidents": incidents,
         "summary": _summarize(series, len(incidents)),
     }
+
+
+@app.get("/api/fleet-summary")
+def fleet_summary(days: int = 90, ids: str = "") -> dict[str, Any]:
+    """Lightweight aggregated stats per helmet for the given period.
+
+    Used as compact context for Chat IA. Returns only summaries (no time series).
+    `ids` = comma-separated list of helmet IDs. If empty, returns empty.
+    """
+    days = max(1, min(days, 90))
+    hours = days * 24
+    step_sec = 21600 if hours > 720 else 10800
+    points = max(1, (hours * 3600) // step_sec)
+
+    id_list = [x.strip() for x in ids.split(",") if x.strip()]
+    result = []
+    for hid in id_list[:25]:
+        seed = _seed_from(hid)
+        series = _build_series(points, seed)
+        incs = _build_incidents(seed, points)
+        summ = _summarize(series, len(incs))
+        bat = [p["v"] for p in series["battery"]]
+        acc = [p["v"] for p in series["accel"]]
+        pit = [p["v"] for p in series["pitch"]]
+        result.append(
+            {
+                "helmet_id": hid,
+                "days": days,
+                "points": points,
+                "battery": {
+                    "avg": summ["battery_avg"],
+                    "min": summ["battery_min"],
+                    "max": max(bat),
+                },
+                "accel": {
+                    "avg": round(sum(acc) / len(acc), 2),
+                    "min": round(min(acc), 2),
+                    "max": round(max(acc), 2),
+                },
+                "pitch": {
+                    "avg": round(sum(pit) / len(pit), 1),
+                    "min": round(min(pit), 1),
+                    "max": round(max(pit), 1),
+                },
+                "activity_pct": {
+                    "caminando": summ["walking_pct"],
+                    "conduciendo": summ["driving_pct"],
+                    "quieto": summ["still_pct"],
+                },
+                "incidents": {
+                    "total": len(incs),
+                    "by_type": _count_by(incs, "type"),
+                    "by_zone": _count_by(incs, "zone"),
+                },
+            }
+        )
+    return {"days": days, "helmets": result}
+
+
+def _count_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for it in items:
+        k = str(it.get(key, ""))
+        out[k] = out.get(k, 0) + 1
+    return out
 
 
 # ----------------------------------------------------------------- Gemini HSE --
@@ -219,18 +302,24 @@ async def analytics_report(payload: AnalyticsInput) -> dict[str, Any]:
 
 # ----------------------------------------------------------------- Chat IA --
 SYSTEM_PROMPT_CHAT = """Eres el Asistente HSE de Piramid CMI Command Center, experto en operación minera y seguridad.
-Tienes acceso al estado en tiempo real de la flota (cascos inteligentes), incluyendo posición GPS, batería, actividad,
-zona, alertas (man-down, geofence), exposición DS594, y datos históricos.
+Tienes acceso al estado en tiempo real de la flota (cascos inteligentes) y a un resumen histórico de 90 días por casco.
+
+ESTRUCTURA DEL CONTEXTO:
+- `context.fleet`: lista de 20 trabajadores con datos actuales (solo Luis Campusano/CMI-001 tiene `tiempo_real: true`, el resto son datos operativos sintéticos)
+- `context.historico_90dias`: resumen agregado de 90 días por casco con avg/min/max de batería/accel/pitch, % de tiempo en cada actividad, incidentes por tipo y por zona
+- `context.evac_active`: si hay evacuación activa
+- `context.mqtt_live`: si el broker MQTT está conectado
 
 Reglas:
-- Responde en español, conciso y directo (3-6 líneas máx, salvo que pidan detalle)
-- Usa los datos del JSON `context.fleet` para responder preguntas factuales
-- Cita IDs de casco (ej. CMI-003) y nombres cuando sea relevante
-- Si te preguntan ubicación → usa lat/lon del JSON
-- Si no hay datos suficientes, dilo explícitamente (no inventes)
+- Responde en español, conciso (3-6 líneas salvo que pidan detalle)
+- Usa nombres y IDs de casco (ej. CMI-003) cuando sea relevante
+- Si te preguntan tendencias / promedios / histórico → usa los datos de `historico_90dias`
+- Si te preguntan ubicación actual → usa `fleet[].gps` / `ubicacion`
+- Nunca inventes datos que no estén en el contexto
+- Destaca con **negritas** métricas críticas (baterías <30%, incidentes altos, zonas peligrosas)
+- Si hay un man-down activo en la flota, menciónalo aunque no se pregunte
 - Para recomendaciones, sé específico (responsable + plazo + acción)
-- Usa **negritas** para destacar nombres, IDs y métricas críticas
-- Si hay un man-down activo, menciónalo aunque no se pregunte
+- Si se pide comparar trabajadores, usa el resumen histórico para contrastar
 """
 
 

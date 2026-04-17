@@ -140,35 +140,60 @@
 
   // ---------------------------------------------------------- Seed fleet --
   function seedFleet() {
-    const names = ['Luis Campusano', 'Carlos Muñoz', 'Pedro Aravena', 'Jorge Tapia',
-                   'Mario González', 'Andrés Silva', 'Roberto Díaz', 'Felipe Rojas'];
-    const roles = ['Ing. Innovación', 'Op. Perforación', 'Geomecánico', 'Jefe de Turno',
-                   'Op. Cargador', 'Topógrafo', 'Op. CAEX', 'Mecánico Mina'];
-    const zones = ['Z2', 'Z1', 'Z4', 'Z2', 'Z3', 'Z1', 'Z5', 'Z2'];
-    const acts  = ['caminando', 'conduciendo', 'quieto'];
+    const fleet = [
+      { nm: 'Luis Campusano',   rl: 'Ing. Innovación',    zn: 'Z2' },  // único con MQTT real
+      { nm: 'Carlos Muñoz',     rl: 'Op. Perforación',    zn: 'Z1' },
+      { nm: 'Pedro Aravena',    rl: 'Geomecánico',        zn: 'Z4' },
+      { nm: 'Jorge Tapia',      rl: 'Jefe de Turno',      zn: 'Z2' },
+      { nm: 'Mario González',   rl: 'Op. Cargador',       zn: 'Z3' },
+      { nm: 'Andrés Silva',     rl: 'Topógrafo',          zn: 'Z1' },
+      { nm: 'Roberto Díaz',     rl: 'Op. CAEX',           zn: 'Z5' },
+      { nm: 'Felipe Rojas',     rl: 'Mecánico Mina',      zn: 'Z2' },
+      { nm: 'Sebastián Vera',   rl: 'Op. Perforación',    zn: 'Z3' },
+      { nm: 'Cristián Pérez',   rl: 'Geólogo',            zn: 'Z4' },
+      { nm: 'Matías Fuentes',   rl: 'Op. CAEX',           zn: 'Z1' },
+      { nm: 'Rodrigo Contreras',rl: 'Electricista Mina',  zn: 'Z2' },
+      { nm: 'Francisco Soto',   rl: 'Op. Bulldozer',      zn: 'Z5' },
+      { nm: 'Javier Bravo',     rl: 'Jefe de Seguridad',  zn: 'Z1' },
+      { nm: 'Nicolás Herrera',  rl: 'Op. Perforación',    zn: 'Z3' },
+      { nm: 'Alejandro Muñoz',  rl: 'Op. CAEX',           zn: 'Z4' },
+      { nm: 'Diego Castro',     rl: 'Paramédico',         zn: 'Z2' },
+      { nm: 'Víctor Espinoza',  rl: 'Electromecánico',    zn: 'Z1' },
+      { nm: 'Gonzalo Sandoval', rl: 'Topógrafo',          zn: 'Z5' },
+      { nm: 'Ricardo Valdés',   rl: 'Op. Cargador',       zn: 'Z3' },
+    ];
+    const acts = ['caminando', 'conduciendo', 'quieto'];
+    const luisLat = '-27.35762', luisLon = '-70.35330';
+    // Indices of workers in critical/warning state (hardcoded for realistic demo)
+    const criticalIdx = [5];         // Andrés Silva = man-down
+    const warningIdx = [2, 10, 14];  // Pedro, Matías, Nicolás = warning
 
-    State.workers = names.map((nm, i) => {
-      const st = i === 5 ? 'cr' : (i === 2 ? 'wr' : 'ok');
-      // Luis Campusano (i=0) GPS reales: Depto. Geología UDA, Copiapó
-      const luisLat = '-27.35762', luisLon = '-70.35330';
+    State.workers = fleet.map((f, i) => {
+      const isLuis = i === 0;
+      const isCrit = criticalIdx.includes(i);
+      const isWarn = warningIdx.includes(i);
+      const st = isCrit ? 'cr' : (isWarn ? 'wr' : 'ok');
       return {
-        id: `CMI-00${i + 1}`,
-        nm, rl: roles[i], zn: zones[i],
-        st, bat: i === 0 ? 102 : 50 + Math.floor(Math.random() * 50),
-        p: i === 0 ? 0 : (i === 5 ? 45 : 160 + Math.floor(Math.random() * 15)),
+        id: `CMI-${String(i + 1).padStart(3, '0')}`,
+        nm: f.nm, rl: f.rl, zn: f.zn,
+        st,
+        bat: isLuis ? 102 : (isCrit ? 38 : 40 + Math.floor(Math.random() * 55)),
+        p: isLuis ? 0 : (isCrit ? 45 : 160 + Math.floor(Math.random() * 15)),
         r: 0, y: 0,
-        ac: i === 0 ? 0 : (i === 5 ? 2.1 : 9.5 + Math.random()),
-        act: i === 0 ? 'desconocido' : (i === 5 ? 'quieto' : acts[i % 3]),
-        lat: i === 0 ? luisLat : (-27.366 - i * 0.003).toFixed(4),
-        lon: i === 0 ? luisLon : (-70.332 - i * 0.002).toFixed(4),
-        mdw: i === 5,
-        gF: i === 0 ? true : i !== 0,
-        ts: Date.now() - (i === 5 ? 30000 : 0),
-        re: i === 0,
+        ac: isLuis ? 0 : (isCrit ? 2.1 : 9.5 + Math.random()),
+        act: isLuis ? 'desconocido' : (isCrit ? 'quieto' : acts[i % 3]),
+        lat: isLuis ? luisLat : (-27.366 - i * 0.0018).toFixed(4),
+        lon: isLuis ? luisLon : (-70.332 - i * 0.0012).toFixed(4),
+        mdw: isCrit,
+        gF: true,
+        ts: Date.now() - (isCrit ? 30000 : Math.floor(Math.random() * 60000)),
+        re: isLuis,
         fw: 'v11.0-C6',
-        gS: i === 0 ? '12' : '', gH: i === 0 ? '0.8' : '', gA: i === 0 ? '385m' : '',
-        gU: '', gFC: i === 0 ? 142 : 0,
-        loc: i === 0 ? 'Depto. Geología · UDA Copiapó' : `Mina · Zona ${zones[i]}`,
+        gS: isLuis ? '12' : String(5 + Math.floor(Math.random() * 7)),
+        gH: isLuis ? '0.8' : '', gA: isLuis ? '385m' : '',
+        gU: '', gFC: isLuis ? 142 : 0,
+        mode: isLuis ? 'live' : 'seed',
+        loc: isLuis ? 'Depto. Geología · UDA Copiapó' : `Mina · Zona ${f.zn}`,
       };
     });
   }
@@ -842,34 +867,22 @@
   }
 
   function toggleEvac() {
-    State.evacActive = !State.evacActive;
+    // Equivalente al botón SOS: publica 'sos' al casco. Sin toggle global de flota.
+    publishCmd('sos');
     const btn = $('evacBtn');
     const lbl = btn.querySelector('.evac-lbl');
-    $('evacState').textContent = State.evacActive ? 'ACTIVA' : 'STANDBY';
-
-    if (State.evacActive) {
-      lbl.textContent = 'CANCELAR EVACUACIÓN';
-      btn.classList.add('is-active');
-      State.workers.forEach((w) => { w.st = 'cr'; w.mdw = true; w.act = 'sos'; });
-      publishCmd('sos');
-      logPush(`⚠ EVACUACIÓN ACTIVADA — SOS a ${State.workers.length} cascos`);
-      toast('cr', 'EVACUACIÓN ACTIVA', `SOS enviado a ${State.workers.length} cascos`);
-    } else {
-      lbl.textContent = 'ACTIVAR EVACUACIÓN';
+    btn.classList.add('is-active');
+    lbl.textContent = '🚨 SOS ENVIADO · ' + new Date().toLocaleTimeString('es-CL');
+    $('evacState').textContent = 'SOS ENVIADO';
+    toast('cr', 'SOS ENVIADO', 'Comando de emergencia publicado al casco (CMI-001)');
+    logPush('🚨 SOS via botón evacuación');
+    Audio.alertManDown();
+    // Revert label after 4s (UX feedback, no persistent state)
+    setTimeout(() => {
       btn.classList.remove('is-active');
-      State.workers.forEach((w, i) => {
-        if (i === 0) { w.st = 'ok'; w.mdw = false; w.act = 'desconocido'; }
-        else {
-          w.st = i === 5 ? 'cr' : (i === 2 ? 'wr' : 'ok');
-          w.mdw = i === 5;
-          w.act = i === 5 ? 'quieto' : ['caminando', 'conduciendo', 'quieto'][i % 3];
-        }
-      });
-      publishCmd('cancel');
-      logPush('✔ EVACUACIÓN CANCELADA — cascos restaurados');
-      toast('ok', 'Evacuación cancelada', 'Cascos restaurados a estado normal');
-    }
-    renderAll();
+      lbl.textContent = 'ACTIVAR EVACUACIÓN (SOS)';
+      $('evacState').textContent = 'STANDBY';
+    }, 4000);
   }
 
   function selectWorker(i) {
@@ -1111,10 +1124,12 @@
   const Analytics = {
     history: null,
     selectedWorker: 0,
+    period: 2160,  // default 90 días
+    fleetSummary: null,  // cache 90-day summary for all workers (for chat context)
 
-    async loadHistory(helmetId) {
+    async loadHistory(helmetId, hours = 24) {
       try {
-        const r = await fetch(`/api/history/${encodeURIComponent(helmetId)}?hours=24`, { cache: 'no-store' });
+        const r = await fetch(`/api/history/${encodeURIComponent(helmetId)}?hours=${hours}`, { cache: 'no-store' });
         if (!r.ok) throw new Error('status ' + r.status);
         return await r.json();
       } catch (e) {
@@ -1123,7 +1138,23 @@
       }
     },
 
+    async loadFleetSummary() {
+      // Cache 90-day summary for ALL workers → used as chat context
+      if (this.fleetSummary) return this.fleetSummary;
+      try {
+        const ids = State.workers.map((w) => w.id).join(',');
+        const r = await fetch(`/api/fleet-summary?days=90&ids=${encodeURIComponent(ids)}`, { cache: 'no-store' });
+        if (r.ok) this.fleetSummary = await r.json();
+      } catch (e) {
+        console.warn('[fleet-summary]', e.message);
+      }
+      return this.fleetSummary;
+    },
+
     async render() {
+      // Preload fleet-summary in background (for chat context)
+      this.loadFleetSummary();
+
       // KPIs
       const fleet = State.workers;
       const online = fleet.filter((w) => w.st !== 'off').length;
@@ -1133,17 +1164,25 @@
       $('anExp').textContent = Math.floor(fleet.length * 0.25);
       $('anScore').textContent = '—';
 
-      // Activity chart (24h hourly bars: walking/driving/still)
       this.drawActivityChart();
       this.drawZoneChart();
 
-      // Worker selector
+      // Worker selector (20 trabajadores)
       const sel = $('anWorker');
       if (!sel.options.length) {
-        sel.innerHTML = fleet.map((w, i) =>
-          `<option value="${i}">${w.nm} · ${w.id}</option>`).join('');
+        sel.innerHTML = State.workers.map((w, i) =>
+          `<option value="${i}">${w.nm} · ${w.id}${w.re ? ' · LIVE' : ''}</option>`).join('');
         sel.addEventListener('change', (e) => {
           this.selectedWorker = +e.target.value;
+          this.renderWorkerHistory();
+        });
+      }
+      // Period selector
+      const pSel = $('anPeriod');
+      if (pSel && !pSel.dataset.bound) {
+        pSel.dataset.bound = '1';
+        pSel.addEventListener('change', (e) => {
+          this.period = +e.target.value;
           this.renderWorkerHistory();
         });
       }
@@ -1153,11 +1192,12 @@
     async renderWorkerHistory() {
       const w = State.workers[this.selectedWorker];
       if (!w) return;
-      const data = await this.loadHistory(w.id);
+      const data = await this.loadHistory(w.id, this.period);
       if (!data) return;
       this.history = data;
 
       const s = data.summary;
+      const periodLabel = data.range_hours >= 720 ? `${Math.round(data.range_hours / 24)} días` : `${data.range_hours}h`;
       const tile = (l, v, accent = '') =>
         `<div class="metric"${accent ? ` data-accent="${accent}"` : ''}>
            <div class="metric-v metric-v-sm">${v}</div>
@@ -1165,10 +1205,10 @@
          </div>`;
 
       $('anWorkerKpis').innerHTML = [
-        tile('Batería promedio', s.battery_avg + '%', s.battery_avg < 50 ? 'cr' : 'ok'),
+        tile(`Batería promedio · ${periodLabel}`, s.battery_avg + '%', s.battery_avg < 50 ? 'cr' : 'ok'),
         tile('Batería mínima', s.battery_min + '%', 'wr'),
         tile('% Caminando', s.walking_pct + '%', 'ok'),
-        tile('Incidentes 24h', s.incidents_count, s.incidents_count ? 'cr' : 'ok'),
+        tile(`Incidentes · ${periodLabel}`, s.incidents_count, s.incidents_count ? 'cr' : 'ok'),
       ].join('');
 
       // Sparklines for this worker's history
@@ -1177,15 +1217,19 @@
       this.drawSpark('hsPit', data.pitch.map((p) => p.v), '--ac', (v) => v.toFixed(1) + '°');
 
       // Incidents list
+      const gran = data.granularity_sec || 600;
       $('anIncidents').innerHTML = data.incidents.length
-        ? data.incidents.map((i) => {
-            const hoursAgo = Math.floor((data.range_hours * 3600 - i.t) / 3600);
+        ? data.incidents.map((inc) => {
+            const secAgo = data.range_hours * 3600 - inc.t;
+            const when = secAgo < 86400
+              ? `hace ${Math.floor(secAgo / 3600)}h`
+              : `hace ${Math.floor(secAgo / 86400)}d`;
             return `<div class="alert alert-wr">
-              <div class="alert-ty" style="color:var(--wr)">${h(i.type)}</div>
-              <div class="alert-m">${h(w.nm)} · Zona ${h(i.zone)}</div>
-              <div class="alert-x">hace ${hoursAgo}h</div></div>`;
+              <div class="alert-ty" style="color:var(--wr)">${h(inc.type)}</div>
+              <div class="alert-m">${h(w.nm)} · Zona ${h(inc.zone)}</div>
+              <div class="alert-x">${when} · granularidad ${Math.round(gran / 60)}min</div></div>`;
           }).join('')
-        : '<div class="empty-state">Sin incidentes en 24h</div>';
+        : '<div class="empty-state">Sin incidentes en el período</div>';
     },
 
     drawSpark(id, data, colorVar, fmt) {
@@ -1529,7 +1573,7 @@
     push(role, content) { this.history.push({ role, content }); },
 
     snapshot() {
-      return {
+      const snap = {
         timestamp: new Date().toISOString(),
         fleet: State.workers.map((w) => ({
           id: w.id, nombre: w.nm, rol: w.rl, zona: w.zn,
@@ -1537,10 +1581,16 @@
           actividad: actEs(w.act), ubicacion: w.loc || '',
           gps: w.lat ? `${w.lat}, ${w.lon}` : 'sin fix',
           pitch: Math.round(w.p), accel: +w.ac.toFixed(2),
+          tiempo_real: !!w.re,  // solo Luis = true
         })),
         evac_active: State.evacActive,
         mqtt_live: State.mqtt.connected,
       };
+      // Include long-term summary (90 days) if preloaded
+      if (Analytics.fleetSummary) {
+        snap.historico_90dias = Analytics.fleetSummary;
+      }
+      return snap;
     },
 
     renderMessages() {

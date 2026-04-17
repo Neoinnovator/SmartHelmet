@@ -105,3 +105,16 @@ Figtree + JetBrains Mono · paleta amber/midnight · mqtt.js 4.3.8 · Leaflet 1.
 - `POST /api/chat` (conversational con context fleet)
 
 Todos lint-clean (Python ruff + JS ESLint = 0 errors).
+
+## v14.5 (17-Abr-2026) — Flota 20 · SOS · Icons SVG · 90 días históricos
+- **Evacuación = SOS directo**: elimina toggle masivo de flota, publica `sos` al `cmi/helmet/001/cmd`. Feedback visual: label "SOS ENVIADO · HH:MM:SS" pulsante 4s, MODO pill rojo urgent, audio alerta, auto-revert a STANDBY
+- **20 trabajadores** con nombres/roles/zonas realistas de minería chilena. Solo CMI-001 (Luis) tiene `re: true` y recibe MQTT real en vivo. 1 man-down (Andrés) + 3 warnings (Pedro/Matías/Nicolás) hardcoded para demo realista
+- **Icons SVG profesionales** en 6 sub-tabs de Analítica: bar-chart (Estadísticas) · trending-up (Predictiva) · lightning (Prescriptiva) · document (Logs) · chat-bubble (Chat IA) · doc-lines (Reporte HSE) — sin emojis
+- **Histórico 3 meses** con granularidad adaptativa:
+  - ≤48h → 10-min (144 pts)
+  - ≤168h → 1h (168 pts)
+  - ≤720h → 3h (240 pts)
+  - ≤2160h → 6h (360 pts)
+  Selector de período en Analítica: 24h / 7d / 30d / 90d
+- **Endpoint `/api/fleet-summary?days=90&ids=...`**: stats agregados por casco (avg/min/max de batería/accel/pitch, % por actividad, incidentes por tipo/zona) — payload ligero para contexto de Gemini
+- **Chat con contexto histórico**: `Chat.snapshot()` incluye `historico_90dias` pre-cargado. SYSTEM_PROMPT actualizado para que Gemini sepa la estructura del contexto. Ahora responde preguntas tipo "¿cuál fue la tendencia de batería de X en el último mes?" usando datos reales
