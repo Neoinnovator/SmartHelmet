@@ -52,55 +52,88 @@ def config() -> dict[str, str]:
 
 
 # ----------------------------------------------------------------- history --
-@app.get("/api/history/{helmet_id}")
-def history(helmet_id: str, hours: int = 24) -> dict[str, Any]:
+ACTIVITIES = ("caminando", "conduciendo", "quieto")
+INCIDENT_TYPES = ("Geofence breach", "Man-down", "Batería baja")
+INCIDENT_ZONES = ("Z1", "Z2", "Z3", "Z4")
+
+
+def _seed_from(helmet_id: str) -> int:
+    """Deterministic non-cryptographic seed from helmet id.
+
+    SHA-256 is used for availability across environments (not for security);
+    only 32 bits of the digest are consumed.
     """
-    Generate a stable 24h synthetic history for a given helmet_id
-    (deterministic, so reloads show same values; looks real for demos).
-    """
-    seed = int(hashlib.md5(helmet_id.encode()).hexdigest()[:8], 16)
-    points = min(max(hours, 1), 48) * 6  # 10-min granularity
-    series_bat, series_acc, series_pit, series_act = [], [], [], []
-    activities = ["caminando", "conduciendo", "quieto"]
+    digest = hashlib.sha256(helmet_id.encode()).hexdigest()
+    return int(digest[:8], 16)
+
+
+def _pick_activity(act_idx: int) -> str:
+    if act_idx < 3:
+        return ACTIVITIES[0]
+    if act_idx < 5:
+        return ACTIVITIES[1]
+    return ACTIVITIES[2]
+
+
+def _build_series(points: int, seed: int) -> dict[str, list[dict[str, Any]]]:
+    series = {"battery": [], "accel": [], "pitch": [], "activity": []}
     bat = 100.0
+    drop_step = 0.06 + (seed % 7) * 0.01
     for i in range(points):
-        bat = max(5.0, bat - (0.06 + (seed % 7) * 0.01) - (0.4 if i > points * .8 else 0))
+        bat = max(5.0, bat - drop_step - (0.4 if i > points * 0.8 else 0))
         acc = 9.6 + math.sin((i + seed) * 0.35) * 1.4 + ((seed >> 4) % 5) * 0.05
         pit = 160.0 + math.sin((i + seed) * 0.22) * 12
-        act_idx = (i + seed) % 7
-        act = activities[0] if act_idx < 3 else activities[1] if act_idx < 5 else activities[2]
         ts = i * 600  # seconds offset from 24h ago
-        series_bat.append({"t": ts, "v": round(bat, 1)})
-        series_acc.append({"t": ts, "v": round(acc, 2)})
-        series_pit.append({"t": ts, "v": round(pit, 1)})
-        series_act.append({"t": ts, "v": act})
+        series["battery"].append({"t": ts, "v": round(bat, 1)})
+        series["accel"].append({"t": ts, "v": round(acc, 2)})
+        series["pitch"].append({"t": ts, "v": round(pit, 1)})
+        series["activity"].append({"t": ts, "v": _pick_activity((i + seed) % 7)})
+    return series
 
-    incidents = []
-    for j in range(1 + seed % 3):
-        incidents.append(
-            {
-                "t": ((seed * (j + 1)) % points) * 600,
-                "type": ["Geofence breach", "Man-down", "Batería baja"][(seed + j) % 3],
-                "zone": ["Z1", "Z2", "Z3", "Z4"][(seed + j) % 4],
-            }
-        )
+
+def _build_incidents(seed: int, points: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "t": ((seed * (j + 1)) % points) * 600,
+            "type": INCIDENT_TYPES[(seed + j) % len(INCIDENT_TYPES)],
+            "zone": INCIDENT_ZONES[(seed + j) % len(INCIDENT_ZONES)],
+        }
+        for j in range(1 + seed % 3)
+    ]
+
+
+def _summarize(series: dict[str, list[dict[str, Any]]], incidents_count: int) -> dict[str, Any]:
+    bat = series["battery"]
+    act = series["activity"]
+    total = len(act) or 1
+    pct = lambda name: round(100 * sum(1 for a in act if a["v"] == name) / total, 1)  # noqa: E731
+    return {
+        "battery_avg": round(sum(p["v"] for p in bat) / len(bat), 1),
+        "battery_min": min(p["v"] for p in bat),
+        "walking_pct": pct("caminando"),
+        "driving_pct": pct("conduciendo"),
+        "still_pct": pct("quieto"),
+        "incidents_count": incidents_count,
+    }
+
+
+@app.get("/api/history/{helmet_id}")
+def history(helmet_id: str, hours: int = 24) -> dict[str, Any]:
+    """Stable 24h synthetic history for a helmet (deterministic for demo)."""
+    seed = _seed_from(helmet_id)
+    points = min(max(hours, 1), 48) * 6  # 10-min granularity
+    series = _build_series(points, seed)
+    incidents = _build_incidents(seed, points)
     return {
         "helmet_id": helmet_id,
         "range_hours": hours,
         "granularity_sec": 600,
-        "battery": series_bat,
-        "accel": series_acc,
-        "pitch": series_pit,
-        "activity": series_act,
+        "battery": series["battery"],
+        "accel": series["accel"],
+        "pitch": series["pitch"],
+        "activity": series["activity"],
         "incidents": incidents,
-        "summary": {
-            "battery_avg": round(sum(p["v"] for p in series_bat) / len(series_bat), 1),
-            "battery_min": min(p["v"] for p in series_bat),
-            "walking_pct": round(100 * sum(1 for a in series_act if a["v"] == "caminando") / len(series_act), 1),
-            "driving_pct": round(100 * sum(1 for a in series_act if a["v"] == "conduciendo") / len(series_act), 1),
-            "still_pct": round(100 * sum(1 for a in series_act if a["v"] == "quieto") / len(series_act), 1),
-            "incidents_count": len(incidents),
-        },
+        "summary": _summarize(series, len(incidents)),
     }
 
 
@@ -156,7 +189,7 @@ async def analytics_report(payload: AnalyticsInput) -> dict[str, Any]:
     )
 
     try:
-        response = await asyncio.wait_for(
+        response: str = await asyncio.wait_for(
             chat.send_message(UserMessage(text=prompt)),
             timeout=50,
         )
