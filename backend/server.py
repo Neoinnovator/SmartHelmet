@@ -262,8 +262,9 @@ async def chat_ia(payload: ChatInput) -> dict[str, Any]:
     if not last_user_text:
         raise HTTPException(status_code=400, detail="último mensaje debe ser del usuario")
 
+    response: str = ""
     try:
-        response: str = await asyncio.wait_for(
+        response = await asyncio.wait_for(
             chat.send_message(UserMessage(text=last_user_text)),
             timeout=40,
         )
