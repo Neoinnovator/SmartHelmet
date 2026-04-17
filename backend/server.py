@@ -129,14 +129,7 @@ def history(helmet_id: str, hours: int = 24) -> dict[str, Any]:
     """
     hours = max(1, min(hours, 2160))  # cap at 90 days
     seed = _seed_from(helmet_id)
-    if hours <= 48:
-        step_sec = 600   # 10 min
-    elif hours <= 168:
-        step_sec = 3600  # 1 h
-    elif hours <= 720:
-        step_sec = 10800  # 3 h
-    else:
-        step_sec = 21600  # 6 h
+    step_sec = _pick_granularity(hours)
     points = max(1, (hours * 3600) // step_sec)
 
     series = _build_series(points, seed)
@@ -164,52 +157,58 @@ def fleet_summary(days: int = 90, ids: str = "") -> dict[str, Any]:
     """
     days = max(1, min(days, 90))
     hours = days * 24
-    step_sec = 21600 if hours > 720 else 10800
+    step_sec = _pick_granularity(hours)
     points = max(1, (hours * 3600) // step_sec)
+    id_list = [x.strip() for x in ids.split(",") if x.strip()][:25]
+    helmets = [_summarize_helmet(hid, days, points) for hid in id_list]
+    return {"days": days, "helmets": helmets}
 
-    id_list = [x.strip() for x in ids.split(",") if x.strip()]
-    result = []
-    for hid in id_list[:25]:
-        seed = _seed_from(hid)
-        series = _build_series(points, seed)
-        incs = _build_incidents(seed, points)
-        summ = _summarize(series, len(incs))
-        bat = [p["v"] for p in series["battery"]]
-        acc = [p["v"] for p in series["accel"]]
-        pit = [p["v"] for p in series["pitch"]]
-        result.append(
-            {
-                "helmet_id": hid,
-                "days": days,
-                "points": points,
-                "battery": {
-                    "avg": summ["battery_avg"],
-                    "min": summ["battery_min"],
-                    "max": max(bat),
-                },
-                "accel": {
-                    "avg": round(sum(acc) / len(acc), 2),
-                    "min": round(min(acc), 2),
-                    "max": round(max(acc), 2),
-                },
-                "pitch": {
-                    "avg": round(sum(pit) / len(pit), 1),
-                    "min": round(min(pit), 1),
-                    "max": round(max(pit), 1),
-                },
-                "activity_pct": {
-                    "caminando": summ["walking_pct"],
-                    "conduciendo": summ["driving_pct"],
-                    "quieto": summ["still_pct"],
-                },
-                "incidents": {
-                    "total": len(incs),
-                    "by_type": _count_by(incs, "type"),
-                    "by_zone": _count_by(incs, "zone"),
-                },
-            }
-        )
-    return {"days": days, "helmets": result}
+
+def _pick_granularity(hours: int) -> int:
+    """Adaptive step size (seconds) to keep payload reasonable."""
+    if hours <= 48:
+        return 600   # 10 min
+    if hours <= 168:
+        return 3600  # 1 h
+    if hours <= 720:
+        return 10800  # 3 h
+    return 21600  # 6 h
+
+
+def _stats(values: list[float], decimals: int = 2) -> dict[str, float]:
+    if not values:
+        return {"avg": 0.0, "min": 0.0, "max": 0.0}
+    return {
+        "avg": round(sum(values) / len(values), decimals),
+        "min": round(min(values), decimals),
+        "max": round(max(values), decimals),
+    }
+
+
+def _summarize_helmet(helmet_id: str, days: int, points: int) -> dict[str, Any]:
+    seed = _seed_from(helmet_id)
+    series = _build_series(points, seed)
+    incs = _build_incidents(seed, points)
+    summ = _summarize(series, len(incs))
+    return {
+        "helmet_id": helmet_id,
+        "days": days,
+        "points": points,
+        "battery": {"avg": summ["battery_avg"], "min": summ["battery_min"],
+                    "max": max(p["v"] for p in series["battery"])},
+        "accel": _stats([p["v"] for p in series["accel"]], 2),
+        "pitch": _stats([p["v"] for p in series["pitch"]], 1),
+        "activity_pct": {
+            "caminando": summ["walking_pct"],
+            "conduciendo": summ["driving_pct"],
+            "quieto": summ["still_pct"],
+        },
+        "incidents": {
+            "total": len(incs),
+            "by_type": _count_by(incs, "type"),
+            "by_zone": _count_by(incs, "zone"),
+        },
+    }
 
 
 def _count_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
