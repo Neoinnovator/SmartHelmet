@@ -54,3 +54,28 @@ Figtree + JetBrains Mono · paleta amber/midnight · mqtt.js 4.3.8 · Leaflet 1.
 - `app.js` ahora hace `fetch('/api/config')` en runtime antes de conectar MQTT
 - Supervisor: backend + frontend + mongodb todos RUNNING, preview URL live
 - Lista para botón Deploy de Emergent (50 créditos/mes, redeploys ilimitados)
+
+## v14.3 (17-Abr-2026) — Analítica IA + Google Maps + i18n
+- **Casco transparente**: Nano Banana (gemini-3.1-flash-image-preview) removió el fondo negro → `helmet-transparent.png` (369KB) en `/app/frontend/public/assets/`
+- **Google Maps tiles**: reemplazó ESRI por `mt0.google.com/vt/lyrs=s|y|m|p` en Leaflet. 4 capas: Satélite, Satélite+Etiquetas (hybrid), Calles, Terreno
+- **Geofence subterráneo**: nueva zona restringida animada en Nivel-4 ("COLAPSO NIVEL-4 · NO-GO · TURNO-SUP") con hatch rojo y stroke pulsante
+- **Geofence satelital**: círculo rojo 250m radio con popup en el mapa GPS
+- **i18n actividades**: `walking→caminando`, `driving→conduciendo`, `still→quieto`, `unknown→desconocido`, `sos→sos` en TODOS los sitios (fleet, twin, demo, schema, MQTT handler)
+- **Tab Analítica IA (6º)** con:
+  - 4 KPIs: Horas Op, Incidentes 24h, Exposición alta, Score HSE (calculado por Gemini)
+  - Chart stacked bars 24h (Caminando/Conduciendo/Quieto)
+  - Chart incidentes por zona (7 días)
+  - Selector trabajador → sparklines de batería/accel/pitch (144 puntos, 10-min granularity)
+  - Lista incidentes por trabajador
+  - Botón "Generar reporte HSE con IA" → Gemini 2.5 Flash
+- **Backend endpoints nuevos**:
+  - `GET /api/history/{helmet_id}?hours=24` — historial sintético determinístico
+  - `POST /api/analytics/report` — reporte HSE en markdown español (Gemini 2.5 Flash con system prompt experto en DS594/Ley 16.744/ICMM)
+- **Emergent LLM key** agregada a `/app/backend/.env`
+- **Shortcut keyboard** extendido: `1-6` para views (antes 1-5)
+
+## v14.3 verified working
+- Backend /api/analytics/report → 200 OK, 2800 chars markdown, Score 95/100
+- Google Maps tiles cargan en satelital híbrido con calles en español
+- Casco PNG transparente con drop-shadow
+- Gráficos canvas (actividad + zonas + sparklines) renderizan correctamente

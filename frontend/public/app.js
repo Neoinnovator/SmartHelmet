@@ -75,11 +75,20 @@
 
   const VIEW_META = [
     { t: 'Operaciones',    s: 'Vista general de flota, alertas y comandos de supervisor' },
-    { t: 'Mapa Mina',      s: 'Posición operacional: esquema subterráneo / open-pit / satelital GPS' },
+    { t: 'Mapa Mina',      s: 'Posición operacional: esquema subterráneo / open-pit / satelital Google' },
     { t: 'Digital Twin',   s: 'Vista detallada sensor-a-sensor del casco seleccionado' },
     { t: 'Seguridad',      s: 'Incidentes, exposición DS594 y estado de evacuación' },
     { t: 'Plataforma',     s: 'Casos de uso implementados, en desarrollo y roadmap' },
+    { t: 'Analítica IA',   s: 'Tendencias, histórico por trabajador y reportes HSE generados por Gemini' },
   ];
+
+  // Translate activity codes → Spanish label
+  const ACT_ES = {
+    walking: 'caminando', driving: 'conduciendo', still: 'quieto',
+    running: 'corriendo', sos: 'sos', unknown: 'desconocido',
+    caminando: 'caminando', conduciendo: 'conduciendo', quieto: 'quieto',
+  };
+  const actEs = (a) => ACT_ES[String(a || '').toLowerCase()] || a || '—';
 
   // ----------------------------------------------------------------- State --
   const State = {
@@ -136,7 +145,7 @@
     const roles = ['Ing. Innovación', 'Op. Perforación', 'Geomecánico', 'Jefe de Turno',
                    'Op. Cargador', 'Topógrafo', 'Op. CAEX', 'Mecánico Mina'];
     const zones = ['Z2', 'Z1', 'Z4', 'Z2', 'Z3', 'Z1', 'Z5', 'Z2'];
-    const acts  = ['walking', 'driving', 'still'];
+    const acts  = ['caminando', 'conduciendo', 'quieto'];
 
     State.workers = names.map((nm, i) => {
       const st = i === 5 ? 'cr' : (i === 2 ? 'wr' : 'ok');
@@ -147,7 +156,7 @@
         p: i === 0 ? 0 : (i === 5 ? 45 : 160 + Math.floor(Math.random() * 15)),
         r: 0, y: 0,
         ac: i === 0 ? 0 : (i === 5 ? 2.1 : 9.5 + Math.random()),
-        act: i === 0 ? 'unknown' : (i === 5 ? 'still' : acts[i % 3]),
+        act: i === 0 ? 'desconocido' : (i === 5 ? 'quieto' : acts[i % 3]),
         lat: i === 0 ? '' : (-27.366 - i * 0.003).toFixed(4),
         lon: i === 0 ? '' : (-70.332 - i * 0.002).toFixed(4),
         mdw: i === 5,
@@ -266,7 +275,7 @@
               <span class="battery-bar"><span class="battery-fill" style="width:${Math.min(w.bat, 100)}%;background:${batColor}"></span></span>
               ${w.bat}%
             </span>
-            <span>${h(w.act)}</span>
+            <span>${h(actEs(w.act))}</span>
             <span>${ago(w.ts)}</span>
           </div>
         </div>
@@ -283,7 +292,7 @@
 
   function renderTwin() {
     const w = State.workers[State.selectedWorker] || State.workers[0];
-    const mode = w.act === 'unknown' ? 'OFF' : (w.mdw ? 'SOS' : 'DEFAULT');
+    const mode = (w.act === 'desconocido' || w.act === 'unknown') ? 'OFF' : (w.mdw ? 'SOS' : 'DEFAULT');
     const modeState = w.mdw ? 'cr' : (mode === 'OFF' ? 'off' : 'ok');
 
     const initials = w.nm.split(' ').map((x) => x[0]).join('').slice(0, 2);
@@ -303,7 +312,7 @@
 
     $('twMetrics').innerHTML = [
       tile('Batería', w.bat + '%', w.bat < 20 ? 'cr' : 'ok'),
-      tile('Actividad', w.act),
+      tile('Actividad', actEs(w.act)),
       tile('Accel', w.ac.toFixed(1)),
       tile('Man-Down', w.mdw ? 'ACTIVO' : 'OK', w.mdw ? 'cr' : 'ok'),
       tile('GPS', w.gF ? 'FIX' : 'NO FIX', w.gF ? 'ok' : 'cr'),
@@ -317,7 +326,7 @@
       tile('Roll',  w.r.toFixed(1) + '°', '', true),
       tile('Yaw',   w.y.toFixed(1) + '°', '', true),
       tile('Accel', w.ac.toFixed(2) + ' m/s²', '', true),
-      tile('Activity', w.act, '', true),
+      tile('Actividad', actEs(w.act), '', true),
       tile('Man-Down', w.mdw ? 'ACTIVO' : 'OK', w.mdw ? 'cr' : 'ok', true),
       tile('Proximidad', '---', '', true),
       tile('Luz', '---', '', true),
@@ -478,6 +487,18 @@
     s += `<text x="418" y="299" fill="var(--cr)" font-family="${F}" font-size="10" font-weight="600">TRONADURA</text>`;
     s += `<text x="418" y="311" fill="var(--cr)" font-family="${F}" font-size="8" opacity=".6">NIVEL-3</text>`;
 
+    // GEOFENCE RESTRINGIDA (nivel-4, zona colapso)
+    s += `<g>`;
+    s += `<rect x="520" y="375" width="230" height="55" rx="4" fill="none" stroke="var(--cr)" stroke-width="1.5" stroke-dasharray="6 4">`;
+    s += `<animate attributeName="stroke-opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></rect>`;
+    s += `<rect x="520" y="375" width="230" height="55" rx="4" fill="url(#hatchR)" opacity=".35"/>`;
+    s += `<defs><pattern id="hatchR" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">`;
+    s += `<line x1="0" y1="0" x2="0" y2="8" stroke="var(--cr)" stroke-width="1.5" opacity=".5"/></pattern></defs>`;
+    s += `<text x="635" y="396" text-anchor="middle" fill="var(--cr)" font-family="${F}" font-size="10" font-weight="700" letter-spacing="1.5">⚠ ZONA RESTRINGIDA</text>`;
+    s += `<text x="635" y="410" text-anchor="middle" fill="var(--cr)" font-family="${F}" font-size="8" opacity=".8">GEOFENCE · Colapso Nivel-4</text>`;
+    s += `<text x="635" y="422" text-anchor="middle" fill="var(--cr)" font-family="${F}" font-size="7.5" opacity=".6">NO-GO · Autorización TURNO-SUP</text>`;
+    s += `</g>`;
+
     const wp = [[140, 95], [270, 95], [420, 95], [570, 95], [140, 195], [270, 195], [420, 195], [170, 295]];
     State.workers.forEach((w, i) => {
       if (i >= wp.length) return;
@@ -500,19 +521,41 @@
     const { lat, lon } = CFG.mineCenter;
     const map = L.map('leafMap', { zoomControl: true, attributionControl: true }).setView([lat, lon], 15);
 
-    const sat = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19, attribution: 'ESRI Satellite' }
+    // Google Maps tile layers (no key required for direct tile access — dev/demo use)
+    // For production: recomendado migrar a Google Maps JS API con API key oficial
+    const gSat = L.tileLayer(
+      'https://mt0.google.com/vt/lyrs=s&hl=es&x={x}&y={y}&z={z}',
+      { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '© Google' }
     );
-    const isDark = document.documentElement.dataset.theme === 'dark';
-    const street = L.tileLayer(
-      isDark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-      { maxZoom: 19, attribution: 'CARTO' }
+    const gHybrid = L.tileLayer(
+      'https://mt0.google.com/vt/lyrs=y&hl=es&x={x}&y={y}&z={z}',
+      { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '© Google Hybrid' }
     );
-    sat.addTo(map);
-    L.control.layers({ Satelital: sat, Calles: street }, null, { position: 'topright' }).addTo(map);
+    const gStreet = L.tileLayer(
+      'https://mt0.google.com/vt/lyrs=m&hl=es&x={x}&y={y}&z={z}',
+      { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '© Google Maps' }
+    );
+    const gTerrain = L.tileLayer(
+      'https://mt0.google.com/vt/lyrs=p&hl=es&x={x}&y={y}&z={z}',
+      { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '© Google Terrain' }
+    );
+    gHybrid.addTo(map);
+    L.control.layers(
+      { 'Satélite + Etiquetas': gHybrid, 'Satélite': gSat, 'Calles': gStreet, 'Terreno': gTerrain },
+      null,
+      { position: 'topright' }
+    ).addTo(map);
+
+    // Geofence circle: restricted zone near mine center (1km radius)
+    L.circle([lat - 0.008, lon - 0.004], {
+      radius: 250,
+      color: '#ff5c6c',
+      weight: 2,
+      opacity: .75,
+      fillColor: '#ff5c6c',
+      fillOpacity: .18,
+      dashArray: '6 4',
+    }).addTo(map).bindPopup('<b>ZONA RESTRINGIDA</b><br>Talud sur inestable<br>Geofence activa');
 
     State.leaflet.map = map;
     setTimeout(() => map.invalidateSize(), 300);
@@ -538,7 +581,7 @@
         html: `<div style="width:22px;height:22px;border-radius:50%;background:${col};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace">${w.id.replace('CMI-', '')}</div>`,
       });
       const mk = L.marker([lat, lon], { icon }).addTo(map);
-      mk.bindPopup(`<b>${h(w.nm)}</b><br>${h(w.rl)}<br>${h(w.id)}<br>Zona ${h(w.zn)}${w.mdw ? '<br><span style="color:red;font-weight:700">MAN-DOWN</span>' : ''}<br>Bat: ${w.bat}%<br>${h(w.act)}`);
+      mk.bindPopup(`<b>${h(w.nm)}</b><br>${h(w.rl)}<br>${h(w.id)}<br>Zona ${h(w.zn)}${w.mdw ? '<br><span style="color:red;font-weight:700">MAN-DOWN</span>' : ''}<br>Bat: ${w.bat}%<br>${h(actEs(w.act))}`);
       State.leaflet.markers.push(mk);
     });
 
@@ -613,7 +656,7 @@
       w.r = d.roll ?? 0;
       w.y = d.yaw ?? 0;
       w.ac = d.accel ?? 0;
-      w.act = d.activity || 'unknown';
+      w.act = actEs(d.activity || 'desconocido');
       w.bat = d.battery_pct ?? w.bat;
       w.lat = d.lat || '';
       w.lon = d.lon || '';
@@ -700,6 +743,7 @@
       else if (State.leaflet.map) { setTimeout(() => { State.leaflet.map.invalidateSize(); updateLeafletMarkers(); }, 200); }
     }
     if (n === 2) { renderTwin(); setTimeout(() => Sparks.renderAll(), 50); }
+    if (n === 5) { setTimeout(() => Analytics.render(), 80); }
     closeMobileSidebar();
   }
 
@@ -770,11 +814,11 @@
       lbl.textContent = 'ACTIVAR EVACUACIÓN';
       btn.classList.remove('is-active');
       State.workers.forEach((w, i) => {
-        if (i === 0) { w.st = 'ok'; w.mdw = false; w.act = 'unknown'; }
+        if (i === 0) { w.st = 'ok'; w.mdw = false; w.act = 'desconocido'; }
         else {
           w.st = i === 5 ? 'cr' : (i === 2 ? 'wr' : 'ok');
           w.mdw = i === 5;
-          w.act = i === 5 ? 'still' : ['walking', 'driving', 'still'][i % 3];
+          w.act = i === 5 ? 'quieto' : ['caminando', 'conduciendo', 'quieto'][i % 3];
         }
       });
       publishCmd('cancel');
@@ -832,6 +876,8 @@
     // Demo + Sound
     $('demoBtn').addEventListener('click', () => Demo.toggle());
     $('soundBtn').addEventListener('click', () => Audio.toggle());
+    // Analytics report
+    $('genReportBtn').addEventListener('click', () => Analytics.generateReport());
 
     // Event delegation for dynamic content
     document.body.addEventListener('click', (e) => {
@@ -846,7 +892,7 @@
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key >= '1' && e.key <= '5') setView(+e.key - 1);
+      if (e.key >= '1' && e.key <= '6') setView(+e.key - 1);
       else if (e.key.toLowerCase() === 't') toggleTheme();
       else if (e.key.toLowerCase() === 's') Audio.toggle();
       else if (e.key.toLowerCase() === 'd') Demo.toggle();
@@ -1002,8 +1048,344 @@
   };
 
   // =========================================================================
-  //                                DEMO MODE
+  //                            ANALYTICS / HSE REPORTS
   // =========================================================================
+  const Analytics = {
+    history: null,
+    selectedWorker: 0,
+
+    async loadHistory(helmetId) {
+      try {
+        const r = await fetch(`/api/history/${encodeURIComponent(helmetId)}?hours=24`, { cache: 'no-store' });
+        if (!r.ok) throw new Error('status ' + r.status);
+        return await r.json();
+      } catch (e) {
+        console.warn('[history]', e.message);
+        return null;
+      }
+    },
+
+    async render() {
+      // KPIs
+      const fleet = State.workers;
+      const online = fleet.filter((w) => w.st !== 'off').length;
+      $('anOps').textContent = (online * 8) + 'h';
+      const incCount = fleet.filter((w) => w.mdw).length + fleet.filter((w) => w.st === 'wr').length;
+      $('anInc').textContent = incCount;
+      $('anExp').textContent = Math.floor(fleet.length * 0.25);
+      $('anScore').textContent = '—';
+
+      // Activity chart (24h hourly bars: walking/driving/still)
+      this.drawActivityChart();
+      this.drawZoneChart();
+
+      // Worker selector
+      const sel = $('anWorker');
+      if (!sel.options.length) {
+        sel.innerHTML = fleet.map((w, i) =>
+          `<option value="${i}">${w.nm} · ${w.id}</option>`).join('');
+        sel.addEventListener('change', (e) => {
+          this.selectedWorker = +e.target.value;
+          this.renderWorkerHistory();
+        });
+      }
+      await this.renderWorkerHistory();
+    },
+
+    async renderWorkerHistory() {
+      const w = State.workers[this.selectedWorker];
+      if (!w) return;
+      const data = await this.loadHistory(w.id);
+      if (!data) return;
+      this.history = data;
+
+      const s = data.summary;
+      const tile = (l, v, accent = '') =>
+        `<div class="metric"${accent ? ` data-accent="${accent}"` : ''}>
+           <div class="metric-v metric-v-sm">${v}</div>
+           <div class="metric-l">${l}</div>
+         </div>`;
+
+      $('anWorkerKpis').innerHTML = [
+        tile('Batería promedio', s.battery_avg + '%', s.battery_avg < 50 ? 'cr' : 'ok'),
+        tile('Batería mínima', s.battery_min + '%', 'wr'),
+        tile('% Caminando', s.walking_pct + '%', 'ok'),
+        tile('Incidentes 24h', s.incidents_count, s.incidents_count ? 'cr' : 'ok'),
+      ].join('');
+
+      // Sparklines for this worker's history
+      this.drawSpark('hsBat', data.battery.map((p) => p.v), '--ok', (v) => Math.round(v) + '%');
+      this.drawSpark('hsAcc', data.accel.map((p) => p.v), '--cy', (v) => v.toFixed(2));
+      this.drawSpark('hsPit', data.pitch.map((p) => p.v), '--ac', (v) => v.toFixed(1) + '°');
+
+      // Incidents list
+      $('anIncidents').innerHTML = data.incidents.length
+        ? data.incidents.map((i) => {
+            const hoursAgo = Math.floor((data.range_hours * 3600 - i.t) / 3600);
+            return `<div class="alert alert-wr">
+              <div class="alert-ty" style="color:var(--wr)">${h(i.type)}</div>
+              <div class="alert-m">${h(w.nm)} · Zona ${h(i.zone)}</div>
+              <div class="alert-x">hace ${hoursAgo}h</div></div>`;
+          }).join('')
+        : '<div class="empty-state">Sin incidentes en 24h</div>';
+    },
+
+    drawSpark(id, data, colorVar, fmt) {
+      const el = $(id);
+      if (!el || !data.length) return;
+      const css = getComputedStyle(document.documentElement);
+      const color = css.getPropertyValue(colorVar).trim() || '#f5a524';
+      const ratio = window.devicePixelRatio || 1;
+      const w = el.clientWidth || 600, ht = el.clientHeight || 54;
+      if (el.width !== w * ratio) { el.width = w * ratio; el.height = ht * ratio; }
+      const ctx = el.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, w, ht);
+      const min = Math.min(...data), max = Math.max(...data);
+      const range = max - min || 1;
+      const step = (w - 6) / Math.max(data.length - 1, 1);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, ht);
+      grad.addColorStop(0, color + '50');
+      grad.addColorStop(1, color + '00');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(3, ht - 3);
+      data.forEach((v, i) => {
+        const x = 3 + i * step;
+        const y = ht - 3 - ((v - min) / range) * (ht - 6);
+        ctx.lineTo(x, y);
+      });
+      ctx.lineTo(3 + (data.length - 1) * step, ht - 3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = 3 + i * step;
+        const y = ht - 3 - ((v - min) / range) * (ht - 6);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      const valEl = $(id + 'V');
+      if (valEl) valEl.textContent = fmt ? fmt(data[data.length - 1]) : data[data.length - 1];
+    },
+
+    drawActivityChart() {
+      const el = $('chActivity');
+      if (!el) return;
+      const css = getComputedStyle(document.documentElement);
+      const cOk = css.getPropertyValue('--ok').trim();
+      const cBl = css.getPropertyValue('--bl').trim();
+      const cMute = css.getPropertyValue('--tx-3').trim();
+      const cBg = css.getPropertyValue('--bg-3').trim();
+
+      const ratio = window.devicePixelRatio || 1;
+      const w = el.clientWidth || 600, ht = 180;
+      if (el.width !== w * ratio) { el.width = w * ratio; el.height = ht * ratio; }
+      const ctx = el.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, w, ht);
+
+      // 24 hourly bars
+      const hours = 24;
+      const barW = (w - 40) / hours * 0.72;
+      const gap = (w - 40) / hours * 0.28;
+      const maxH = ht - 30;
+      for (let i = 0; i < hours; i++) {
+        const x = 30 + i * (barW + gap);
+        // Synthesize a consistent pattern
+        const walking = 40 + Math.abs(Math.sin(i * 0.6)) * 30;
+        const driving = 20 + Math.abs(Math.cos(i * 0.5)) * 20;
+        const still = 100 - walking - driving;
+        let yCursor = ht - 16;
+
+        // still
+        let h1 = (still / 100) * maxH;
+        ctx.fillStyle = cMute;
+        ctx.fillRect(x, yCursor - h1, barW, h1);
+        yCursor -= h1;
+        // driving
+        const h2 = (driving / 100) * maxH;
+        ctx.fillStyle = cBl;
+        ctx.fillRect(x, yCursor - h2, barW, h2);
+        yCursor -= h2;
+        // walking
+        const h3 = (walking / 100) * maxH;
+        ctx.fillStyle = cOk;
+        ctx.fillRect(x, yCursor - h3, barW, h3);
+
+        // hour label
+        if (i % 4 === 0) {
+          ctx.fillStyle = cMute;
+          ctx.font = '10px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${i}h`, x + barW / 2, ht - 4);
+        }
+      }
+      // Y axis baseline
+      ctx.strokeStyle = cBg;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(30, ht - 16);
+      ctx.lineTo(w - 10, ht - 16);
+      ctx.stroke();
+    },
+
+    drawZoneChart() {
+      const el = $('chZones');
+      if (!el) return;
+      const css = getComputedStyle(document.documentElement);
+      const cAc = css.getPropertyValue('--ac').trim();
+      const cCr = css.getPropertyValue('--cr').trim();
+      const cWr = css.getPropertyValue('--wr').trim();
+      const cMute = css.getPropertyValue('--tx-3').trim();
+
+      const ratio = window.devicePixelRatio || 1;
+      const w = el.clientWidth || 600, ht = 180;
+      if (el.width !== w * ratio) { el.width = w * ratio; el.height = ht * ratio; }
+      const ctx = el.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, w, ht);
+
+      const zones = [
+        { n: 'Z1', v: 3, c: cAc },
+        { n: 'Z2', v: 5, c: cWr },
+        { n: 'Z3', v: 2, c: cAc },
+        { n: 'Z4', v: 7, c: cCr },
+        { n: 'Z5', v: 1, c: cAc },
+      ];
+      const max = Math.max(...zones.map((z) => z.v));
+      const colW = (w - 80) / zones.length;
+      zones.forEach((z, i) => {
+        const x = 60 + i * colW + 10;
+        const bh = (z.v / max) * (ht - 50);
+        const y = ht - 30 - bh;
+        // Bar
+        const grad = ctx.createLinearGradient(0, y, 0, y + bh);
+        grad.addColorStop(0, z.c);
+        grad.addColorStop(1, z.c + '66');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, colW - 20, bh);
+        // Value
+        ctx.fillStyle = z.c;
+        ctx.font = '700 13px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(z.v, x + (colW - 20) / 2, y - 6);
+        // Label
+        ctx.fillStyle = cMute;
+        ctx.font = '11px "JetBrains Mono", monospace';
+        ctx.fillText(z.n, x + (colW - 20) / 2, ht - 12);
+      });
+    },
+
+    async generateReport() {
+      const btn = $('genReportBtn');
+      const lbl = $('genReportLbl');
+      btn.disabled = true;
+      lbl.textContent = 'Analizando…';
+      $('reportBody').innerHTML = '<div class="report-loading"><div class="spinner"></div><div>Gemini está analizando la flota, incidentes y exposición DS594…</div></div>';
+
+      const fleet = State.workers.map((w) => ({
+        id: w.id, nombre: w.nm, rol: w.rl, zona: w.zn,
+        estado: w.st, man_down: w.mdw, bateria: w.bat,
+        actividad: actEs(w.act), pitch: Math.round(w.p), accel: +w.ac.toFixed(2),
+      }));
+      const incidents = State.workers.filter((w) => w.mdw || w.st === 'wr').map((w) => ({
+        casco: w.id, trabajador: w.nm, tipo: w.mdw ? 'man-down' : 'alerta', zona: w.zn,
+      }));
+      const exposure = State.workers.map((w) => ({
+        trabajador: w.nm, casco: w.id, horas_expuesto: (2 + Math.abs((w.id.charCodeAt(5) || 0) % 6)).toString() + 'h',
+      }));
+
+      try {
+        const r = await fetch('/api/analytics/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fleet, incidents, exposure, period: 'Turno actual · ' + new Date().toLocaleString('es-CL') }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const html = this.markdownToHtml(data.report || 'Sin contenido');
+        $('reportBody').innerHTML = html;
+        $('reportMeta').textContent = `${data.model} · ${new Date(data.generated_at).toLocaleTimeString('es-CL')}`;
+
+        // Extract score (0-100)
+        const scoreMatch = (data.report || '').match(/(?:Score\s*HSE[\s\S]{0,80}?)(\d{1,3})/i);
+        if (scoreMatch) $('anScore').textContent = scoreMatch[1];
+
+        toast('ok', 'Reporte HSE generado', 'Gemini completó el análisis');
+      } catch (e) {
+        $('reportBody').innerHTML = `<div class="empty-state" style="color:var(--cr)">Error generando reporte: ${h(e.message)}. Revisa EMERGENT_LLM_KEY en backend/.env</div>`;
+        toast('cr', 'Error', 'No se pudo generar el reporte HSE');
+      } finally {
+        btn.disabled = false;
+        lbl.textContent = 'Regenerar reporte';
+      }
+    },
+
+    markdownToHtml(md) {
+      // Minimal markdown renderer (headings, bold, italic, lists, tables, code, quotes)
+      const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const lines = md.split('\n');
+      let html = '';
+      let inList = false, inOL = false, inTable = false, tableHeader = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const line = raw.trimEnd();
+
+        if (/^#{1}\s+/.test(line)) { if (inList) { html += inOL ? '</ol>' : '</ul>'; inList = false; } html += `<h1>${esc(line.replace(/^#\s+/, ''))}</h1>`; continue; }
+        if (/^#{2}\s+/.test(line)) { if (inList) { html += inOL ? '</ol>' : '</ul>'; inList = false; } html += `<h2>${esc(line.replace(/^#{2}\s+/, ''))}</h2>`; continue; }
+        if (/^#{3}\s+/.test(line)) { if (inList) { html += inOL ? '</ol>' : '</ul>'; inList = false; } html += `<h3>${esc(line.replace(/^#{3}\s+/, ''))}</h3>`; continue; }
+
+        // Tables
+        if (/^\|.*\|$/.test(line)) {
+          const cells = line.slice(1, -1).split('|').map((c) => c.trim());
+          if (/^[\s\-:|]+$/.test(line)) { tableHeader = false; continue; }
+          if (!inTable) { html += '<table>'; inTable = true; tableHeader = true; }
+          const tag = tableHeader ? 'th' : 'td';
+          html += '<tr>' + cells.map((c) => `<${tag}>${formatInline(c)}</${tag}>`).join('') + '</tr>';
+          tableHeader = false;
+          continue;
+        } else if (inTable) { html += '</table>'; inTable = false; }
+
+        // Ordered list
+        if (/^\s*\d+\.\s+/.test(line)) {
+          if (!inList || !inOL) { if (inList) html += '</ul>'; html += '<ol>'; inList = true; inOL = true; }
+          html += `<li>${formatInline(line.replace(/^\s*\d+\.\s+/, ''))}</li>`;
+          continue;
+        }
+        // Unordered list
+        if (/^\s*[-*]\s+/.test(line)) {
+          if (!inList || inOL) { if (inList) html += '</ol>'; html += '<ul>'; inList = true; inOL = false; }
+          html += `<li>${formatInline(line.replace(/^\s*[-*]\s+/, ''))}</li>`;
+          continue;
+        }
+        if (inList) { html += inOL ? '</ol>' : '</ul>'; inList = false; }
+
+        if (/^>\s+/.test(line)) { html += `<blockquote>${formatInline(line.replace(/^>\s+/, ''))}</blockquote>`; continue; }
+
+        if (line.trim()) html += `<p>${formatInline(line)}</p>`;
+      }
+      if (inList) html += inOL ? '</ol>' : '</ul>';
+      if (inTable) html += '</table>';
+      return html;
+
+      function formatInline(s) {
+        s = esc(s);
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+        return s;
+      }
+    },
+  };
+
+
   const Demo = {
     active: false,
     timer: null,
@@ -1045,7 +1427,7 @@
       w.y  = (t * 2) % 360;
       w.ac = 9.6 + Math.sin(t * 0.4) * 0.5 + Math.random() * 0.2;
       w.bat = Math.max(0, w.bat - (Math.random() > 0.85 ? 1 : 0));
-      w.act = ['walking', 'still', 'driving', 'walking'][t % 4];
+      w.act = ['caminando', 'quieto', 'conduciendo', 'caminando'][t % 4];
       w.lat = (-27.366 + Math.sin(t * 0.1) * 0.002).toFixed(5);
       w.lon = (-70.332 + Math.cos(t * 0.1) * 0.002).toFixed(5);
       w.gF = true; w.gS = String(6 + Math.floor(Math.random() * 5));
@@ -1060,7 +1442,7 @@
       }
       if (t === 14) {
         // Scenario: Man-Down on worker 0 (the live one)
-        w.mdw = true; w.st = 'cr'; w.p = 48; w.ac = 2.3; w.act = 'still';
+        w.mdw = true; w.st = 'cr'; w.p = 48; w.ac = 2.3; w.act = 'quieto';
         toast('cr', 'MAN-DOWN detectado', 'Luis Campusano (CMI-001) — pitch 48°');
         Audio.alertManDown();
         logPush('🚨 MAN-DOWN · CMI-001 · pitch=48°');
