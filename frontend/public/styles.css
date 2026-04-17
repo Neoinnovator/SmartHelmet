@@ -810,12 +810,23 @@ ul { list-style: none; }
   position: relative;
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
+  perspective: 600px;
 }
 .twin-helmet img {
   width: 100%; height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 8px 16px rgba(0,0,0,.5));
   position: relative; z-index: 2;
+  transform-origin: 50% 60%;
+  transition: transform .35s var(--easing);
+  will-change: transform;
+}
+.twin-helmet.is-shake img {
+  animation: helmet-shake .4s ease-in-out;
+}
+@keyframes helmet-shake {
+  0%, 100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,.5)); }
+  50% { filter: drop-shadow(0 8px 24px rgba(255, 92, 108, .7)); }
 }
 .twin-helmet-ring {
   position: absolute;

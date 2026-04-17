@@ -690,6 +690,8 @@
       w.lat = d.lat || '';
       w.lon = d.lon || '';
       if (d.mode) { w.mode = d.mode; updateHelmetMode(d.mode); }
+      // Move the helmet 3D image in sync with Luis IMU (only he is live)
+      if (w.id === 'CMI-001') HelmetMotion.apply(w.p, w.r, w.y, w.ac);
       const wasMdw = w.mdw;
       w.mdw = d.man_down === true || d.man_down === 'true';
       w.gF = !!d.lat;
@@ -790,6 +792,63 @@
     pill.dataset.mode = state;
   }
 
+  // 3D orientation transform for the helmet photo driven by BNO085 IMU
+  const HelmetMotion = {
+    baseline: null,    // calibrated on first MQTT sensor frame
+    calibrated: false,
+
+    // Normalize angle diff into [-180, 180]
+    norm(d) {
+      while (d > 180) d -= 360;
+      while (d < -180) d += 360;
+      return d;
+    },
+
+    // Clamp output rotation to a sensible range so the helmet stays visible
+    clamp(v, lim = 55) {
+      return Math.max(-lim, Math.min(lim, v));
+    },
+
+    apply(pitch, roll, yaw, accel) {
+      const img = $('twHelmet');
+      const wrap = document.querySelector('.twin-helmet');
+      if (!img || !wrap) return;
+
+      if (!this.calibrated) {
+        this.baseline = { p: pitch, r: roll, y: yaw };
+        this.calibrated = true;
+      }
+
+      // Delta from calibrated resting position
+      const dp = this.norm(pitch - this.baseline.p);
+      const dr = this.norm(roll - this.baseline.r);
+      const dy = this.norm(yaw - this.baseline.y);
+
+      // Scale: BNO085 delivers real-world angles; we amplify small motions
+      // but clamp extremes so the image never flips away from the viewer.
+      const rotX = this.clamp(dp * 0.7);   // tilt forward/back
+      const rotZ = this.clamp(dr * 0.7);   // tilt sideways
+      const rotY = this.clamp(dy * 0.4, 40); // head-turn (less aggressive)
+
+      img.style.transform =
+        `rotateX(${rotX.toFixed(1)}deg) rotateY(${rotY.toFixed(1)}deg) rotateZ(${rotZ.toFixed(1)}deg)`;
+
+      // Impact / high-movement pulse when accel magnitude exceeds idle gravity
+      if (typeof accel === 'number' && accel > 14) {
+        wrap.classList.add('is-shake');
+        clearTimeout(this._shakeT);
+        this._shakeT = setTimeout(() => wrap.classList.remove('is-shake'), 420);
+      }
+    },
+
+    reset() {
+      this.calibrated = false;
+      this.baseline = null;
+      const img = $('twHelmet');
+      if (img) img.style.transform = '';
+    },
+  };
+
   // =========================================================================
   //                                 UI / INPUT
   // =========================================================================
@@ -888,6 +947,8 @@
   function selectWorker(i) {
     if (i < 0 || i >= State.workers.length) return;
     State.selectedWorker = i;
+    // Reset helmet motion when switching workers — only Luis has live IMU data
+    HelmetMotion.reset();
     renderFleet();
     setView(2);
   }
@@ -1560,6 +1621,8 @@
 
       Sparks.push(w);
       if (State.currentView === 2) Sparks.renderAll();
+      // Move helmet image in demo mode too (Luis = CMI-001 is always index 0)
+      HelmetMotion.apply(w.p, w.r, w.y, w.ac);
       renderAllDebounced();
     },
   };
