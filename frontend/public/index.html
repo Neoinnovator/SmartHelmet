@@ -20,15 +20,15 @@
   <div class="app" id="app">
 
     <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
-      <div class="brand">
-        <img src="assets/piramid.png" alt="Piramid Solutions" class="brand-logo brand-logo-piramid" />
-        <div class="brand-text">
-          <div class="brand-title">CMI</div>
-          <div class="brand-sub">Command Center</div>
+      <div class="brand-stack">
+        <div class="brand-row">
+          <img src="assets/piramid.png" alt="Piramid Solutions" class="brand-logo" />
+          <div class="brand-text">
+            <div class="brand-title">CMI</div>
+            <div class="brand-sub">Command Center</div>
+          </div>
         </div>
-      </div>
-      <div class="brand-partners" aria-label="Partners">
-        <img src="assets/ilumintech.png" alt="Ilumintech" class="brand-partner-logo" />
+        <img src="assets/ilumintech.png" alt="Ilumintech" class="brand-logo brand-logo-partner" />
       </div>
 
       <nav class="nav" role="tablist" aria-label="Vistas">
@@ -177,7 +177,7 @@
         <section class="view" id="p2" role="tabpanel" aria-labelledby="nav-twin" hidden>
           <div class="twin-hero">
             <div class="twin-helmet" aria-hidden="true">
-              <img src="assets/helmet-transparent.png" alt="" id="twHelmet" />
+              <img src="assets/helmet-clean.png" alt="" id="twHelmet" />
               <div class="twin-helmet-ring"></div>
             </div>
             <div class="twin-inf">
@@ -269,64 +269,159 @@
 
         <!-- ============== P5: ANALÍTICA IA ============== -->
         <section class="view" id="p5" role="tabpanel" aria-labelledby="nav-analytics" hidden>
-          <div class="kpi-grid kpi-4">
-            <div class="card card-accent" data-accent="ok"><div class="lbl">Horas operación</div><div class="val" id="anOps">—</div><div class="note">Turno actual acumulado</div></div>
-            <div class="card card-accent" data-accent="cr"><div class="lbl">Incidentes 24h</div><div class="val" id="anInc">—</div><div class="note">Man-down + geofence + batería</div></div>
-            <div class="card card-accent" data-accent="wr"><div class="lbl">Exposición alta</div><div class="val" id="anExp">—</div><div class="note">Trabajadores &gt;80% DS594</div></div>
-            <div class="card card-accent" data-accent="ac"><div class="lbl">Score HSE</div><div class="val" id="anScore">—</div><div class="note">Calculado por Gemini AI</div></div>
+          <div class="subtabs" role="tablist" aria-label="Vistas de analítica">
+            <button class="subtab is-on" data-sub="stats" data-testid="sub-stats">📊 Estadísticas</button>
+            <button class="subtab" data-sub="pred" data-testid="sub-pred">🔮 Predictiva</button>
+            <button class="subtab" data-sub="presc" data-testid="sub-presc">⚡ Prescriptiva</button>
+            <button class="subtab" data-sub="logs" data-testid="sub-logs">📜 Logs históricos</button>
+            <button class="subtab" data-sub="chat" data-testid="sub-chat">💬 Chat IA</button>
+            <button class="subtab" data-sub="report" data-testid="sub-report">📄 Reporte HSE</button>
           </div>
 
-          <div class="grid-2">
+          <!-- Subtab: Estadísticas -->
+          <div class="subview is-on" id="sub-stats">
+            <div class="kpi-grid kpi-4">
+              <div class="card card-accent" data-accent="ok"><div class="lbl">Horas operación</div><div class="val" id="anOps">—</div><div class="note">Turno actual acumulado</div></div>
+              <div class="card card-accent" data-accent="cr"><div class="lbl">Incidentes 24h</div><div class="val" id="anInc">—</div><div class="note">Man-down + geofence + batería</div></div>
+              <div class="card card-accent" data-accent="wr"><div class="lbl">Exposición alta</div><div class="val" id="anExp">—</div><div class="note">Trabajadores &gt;80% DS594</div></div>
+              <div class="card card-accent" data-accent="ac"><div class="lbl">Score HSE</div><div class="val" id="anScore">—</div><div class="note">Calculado por Gemini AI</div></div>
+            </div>
+
+            <div class="grid-2">
+              <article class="card">
+                <header class="card-hd"><h3 class="card-t">Actividad por hora · 24h</h3><span class="chip chip-bl">demo data</span></header>
+                <canvas id="chActivity" class="chart-canvas"></canvas>
+                <div class="chart-legend"><span class="lg-dot" style="background:var(--ok)"></span>Caminando<span class="lg-dot" style="background:var(--bl)"></span>Conduciendo<span class="lg-dot" style="background:var(--tx-3)"></span>Quieto</div>
+              </article>
+              <article class="card">
+                <header class="card-hd"><h3 class="card-t">Incidentes por zona · 7d</h3><span class="chip chip-muted">acumulado</span></header>
+                <canvas id="chZones" class="chart-canvas"></canvas>
+              </article>
+            </div>
+
             <article class="card">
               <header class="card-hd">
-                <h3 class="card-t">Actividad por hora · últimas 24h</h3>
-                <span class="chip chip-bl">demo data</span>
+                <h3 class="card-t">Histórico por trabajador</h3>
+                <select id="anWorker" class="select-ctrl" aria-label="Seleccionar trabajador" data-testid="an-worker-select"></select>
               </header>
-              <canvas id="chActivity" width="600" height="180" class="chart-canvas"></canvas>
+              <div class="kpi-grid kpi-4" id="anWorkerKpis"></div>
+              <div class="sparks">
+                <div class="spark-row"><span class="spark-lbl">Batería</span><canvas class="spark spark-lg" id="hsBat"></canvas><span class="spark-val" id="hsBatV">—</span></div>
+                <div class="spark-row"><span class="spark-lbl">Accel</span><canvas class="spark spark-lg" id="hsAcc"></canvas><span class="spark-val" id="hsAccV">—</span></div>
+                <div class="spark-row"><span class="spark-lbl">Pitch</span><canvas class="spark spark-lg" id="hsPit"></canvas><span class="spark-val" id="hsPitV">—</span></div>
+              </div>
+              <div id="anIncidents" class="alerts"></div>
+            </article>
+          </div>
+
+          <!-- Subtab: Predictiva -->
+          <div class="subview" id="sub-pred" hidden>
+            <article class="card">
+              <header class="card-hd">
+                <h3 class="card-t">Forecast 8h · Probabilidad de incidente</h3>
+                <button class="btn-report" id="genPredBtn" data-testid="gen-pred-btn"><span class="btn-ico">✦</span><span>Recalcular con IA</span></button>
+              </header>
+              <canvas id="chForecast" class="chart-canvas" style="height:220px"></canvas>
               <div class="chart-legend">
-                <span class="lg-dot" style="background:var(--ok)"></span>Caminando
-                <span class="lg-dot" style="background:var(--bl)"></span>Conduciendo
-                <span class="lg-dot" style="background:var(--tx-3)"></span>Quieto
+                <span class="lg-dot" style="background:var(--ok)"></span>Bajo riesgo
+                <span class="lg-dot" style="background:var(--wr)"></span>Riesgo medio
+                <span class="lg-dot" style="background:var(--cr)"></span>Riesgo alto
               </div>
             </article>
+            <div class="kpi-grid kpi-3">
+              <div class="card card-accent" data-accent="cr"><div class="lbl">Pico de riesgo</div><div class="val" id="predPeak">—</div><div class="note">Hora estimada</div></div>
+              <div class="card card-accent" data-accent="wr"><div class="lbl">Trabajador en riesgo</div><div class="val" id="predWorker" style="font-size:18px">—</div><div class="note">Patrón anómalo detectado</div></div>
+              <div class="card card-accent" data-accent="bl"><div class="lbl">Confianza modelo</div><div class="val" id="predConf">—</div><div class="note">Gemini analytics</div></div>
+            </div>
             <article class="card">
-              <header class="card-hd">
-                <h3 class="card-t">Incidentes por zona</h3>
-                <span class="chip chip-muted">7 días</span>
-              </header>
-              <canvas id="chZones" width="600" height="180" class="chart-canvas"></canvas>
+              <header class="card-hd"><h3 class="card-t">Patrones detectados</h3></header>
+              <div id="predPatterns"></div>
             </article>
           </div>
 
-          <article class="card">
-            <header class="card-hd">
-              <h3 class="card-t">Histórico por trabajador</h3>
-              <select id="anWorker" class="select-ctrl" aria-label="Seleccionar trabajador" data-testid="an-worker-select"></select>
-            </header>
-            <div class="kpi-grid kpi-4" id="anWorkerKpis" style="margin-bottom:14px"></div>
-            <div class="sparks">
-              <div class="spark-row"><span class="spark-lbl">Batería</span><canvas class="spark spark-lg" id="hsBat"></canvas><span class="spark-val" id="hsBatV">—</span></div>
-              <div class="spark-row"><span class="spark-lbl">Accel</span><canvas class="spark spark-lg" id="hsAcc"></canvas><span class="spark-val" id="hsAccV">—</span></div>
-              <div class="spark-row"><span class="spark-lbl">Pitch</span><canvas class="spark spark-lg" id="hsPit"></canvas><span class="spark-val" id="hsPitV">—</span></div>
-            </div>
-            <div id="anIncidents" class="alerts" style="margin-top:14px"></div>
-          </article>
+          <!-- Subtab: Prescriptiva -->
+          <div class="subview" id="sub-presc" hidden>
+            <article class="card">
+              <header class="card-hd">
+                <h3 class="card-t">Acciones recomendadas por IA</h3>
+                <button class="btn-report" id="genPrescBtn" data-testid="gen-presc-btn"><span class="btn-ico">⚡</span><span>Generar acciones</span></button>
+              </header>
+              <div id="prescActions">
+                <div class="empty-state">Click en <strong>Generar acciones</strong> — Gemini propondrá medidas concretas (rotación, descansos, EPP, charlas, mantención) basadas en la flota actual.</div>
+              </div>
+            </article>
+          </div>
 
-          <article class="card" id="reportCard">
-            <header class="card-hd">
-              <h3 class="card-t">Reporte HSE generado por IA</h3>
-              <div style="display:flex;gap:8px;align-items:center">
-                <span class="chip chip-ac" id="reportMeta">Gemini 2.5 Flash</span>
-                <button class="btn-report" id="genReportBtn" data-testid="gen-report-btn">
-                  <span class="btn-ico" aria-hidden="true">✦</span>
-                  <span id="genReportLbl">Generar reporte HSE</span>
+          <!-- Subtab: Logs históricos -->
+          <div class="subview" id="sub-logs" hidden>
+            <article class="card">
+              <header class="card-hd">
+                <h3 class="card-t">Bitácora histórica · últimos 30 días</h3>
+                <div style="display:flex;gap:8px">
+                  <select id="logFilter" class="select-ctrl" data-testid="log-filter">
+                    <option value="all">Todos los eventos</option>
+                    <option value="cr">Críticos (man-down / SOS)</option>
+                    <option value="wr">Alertas (geofence / batería)</option>
+                    <option value="ok">Sistema (conexión / cmd)</option>
+                  </select>
+                </div>
+              </header>
+              <div id="histLogs" class="hist-logs" data-testid="hist-logs"></div>
+            </article>
+          </div>
+
+          <!-- Subtab: Chat IA -->
+          <div class="subview" id="sub-chat" hidden>
+            <article class="card chat-card">
+              <header class="card-hd">
+                <h3 class="card-t">💬 Asistente HSE · Gemini 2.5 Flash</h3>
+                <button class="btn-link" id="chatClearBtn" data-testid="chat-clear-btn">Nueva conversación</button>
+              </header>
+              <div class="chat-messages" id="chatMessages" data-testid="chat-messages">
+                <div class="chat-msg chat-msg-ai">
+                  <div class="chat-avatar chat-avatar-ai">AI</div>
+                  <div class="chat-bubble">
+                    Hola 👋 Soy el asistente HSE de Piramid CMI. Tengo acceso al estado de la flota en tiempo real, histórico, exposición DS594 y geofences. Pregúntame cosas como:
+                    <ul>
+                      <li>¿Dónde está Luis Campusano ahora?</li>
+                      <li>¿Quiénes tienen batería bajo 30%?</li>
+                      <li>¿Hay alguien en zona restringida?</li>
+                      <li>Resumen del turno actual</li>
+                      <li>Recomendaciones para reducir incidentes en Z4</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div class="chat-input-wrap">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Pregunta algo sobre la flota… (Enter para enviar)" data-testid="chat-input" />
+                <button class="chat-send" id="chatSendBtn" data-testid="chat-send-btn" aria-label="Enviar">
+                  <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7Z"/></svg>
                 </button>
               </div>
-            </header>
-            <div id="reportBody" class="report-body">
-              <div class="empty-state">Haz click en <strong>Generar reporte HSE</strong> — Gemini analizará la flota, incidentes y exposición DS594, y devolverá un reporte accionable en español.</div>
-            </div>
-          </article>
+              <div class="chat-suggestions">
+                <button class="chip-sug" data-q="¿Dónde está Luis Campusano y qué está haciendo ahora?">📍 ¿Dónde está Luis?</button>
+                <button class="chip-sug" data-q="¿Hay incidentes activos? ¿Cuáles son los más urgentes?">🚨 Incidentes urgentes</button>
+                <button class="chip-sug" data-q="Lista los trabajadores con batería bajo 30% y propón acción">🔋 Baterías bajas</button>
+                <button class="chip-sug" data-q="Resumen ejecutivo de las últimas 24h">📊 Resumen 24h</button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Subtab: Reporte HSE -->
+          <div class="subview" id="sub-report" hidden>
+            <article class="card" id="reportCard">
+              <header class="card-hd">
+                <h3 class="card-t">Reporte HSE · generado por IA</h3>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span class="chip chip-ac" id="reportMeta">Gemini 2.5 Flash</span>
+                  <button class="btn-report" id="genReportBtn" data-testid="gen-report-btn"><span class="btn-ico">✦</span><span id="genReportLbl">Generar reporte HSE</span></button>
+                </div>
+              </header>
+              <div id="reportBody" class="report-body">
+                <div class="empty-state">Haz click en <strong>Generar reporte HSE</strong> — Gemini analizará la flota, incidentes y exposición DS594, y devolverá un reporte accionable en español.</div>
+              </div>
+            </article>
+          </div>
         </section>
       </div>
 

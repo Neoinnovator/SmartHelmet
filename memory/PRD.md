@@ -79,3 +79,29 @@ Figtree + JetBrains Mono · paleta amber/midnight · mqtt.js 4.3.8 · Leaflet 1.
 - Google Maps tiles cargan en satelital híbrido con calles en español
 - Casco PNG transparente con drop-shadow
 - Gráficos canvas (actividad + zonas + sparklines) renderizan correctamente
+
+## v14.4 (17-Abr-2026) — Chat IA + Sub-tabs + Casco fix + GPS Luis
+- **Casco PNG con alpha real** (`helmet-clean.png`, 108KB): Pillow chroma-key sobre el negro, fade suave en bordes — fondo 100% transparente, integra perfecto con hero del Twin
+- **Logos sidebar simétricos**: brand-stack vertical con Piramid (blanco) + Ilumintech (negro) en cards consistentes (40px alto, padding uniforme)
+- **6 sub-tabs en Analítica**: 📊 Estadísticas · 🔮 Predictiva · ⚡ Prescriptiva · 📜 Logs históricos · 💬 Chat IA · 📄 Reporte HSE
+- **Chat IA con Gemini 2.5 Flash** (`POST /api/chat`):
+  - Conversational con history en frontend
+  - Context inline: snapshot completo de flota + evac state + MQTT status
+  - 4 sugerencias rápidas (¿Dónde está Luis? · Incidentes urgentes · Baterías bajas · Resumen 24h)
+  - Typing indicator animado
+  - Markdown light (negritas, listas, code)
+- **Analítica Predictiva** (`POST /api/analytics/predictive`): forecast 8h con probabilidad de incidente (canvas chart con gradient + escala 0-100%), pico de riesgo, trabajador en riesgo, % confianza, lista de patrones detectados con impacto (alto/medio/bajo)
+- **Analítica Prescriptiva** (`POST /api/analytics/prescriptive`): 5-7 acciones recomendadas por Gemini con prioridad (alta/media/baja), responsable y plazo
+- **Logs históricos 30 días**: 150-240 eventos sintéticos categorizados por tipo (cr/wr/ok/bl) con filtro
+- **GPS Luis Campusano**: lat=-27.35762, lon=-70.35330 (Depto. Geología UDA Copiapó), gF=true, sats=12, HDOP=0.8, 142 fixes
+- **Mapa centrado** en UDA Copiapó (-27.35762, -70.35330)
+- **Mejoras responsive**: brand-stack escala mejor en móvil, log-entry colapsa a 1 columna, chat-card altura adaptativa, subtabs scroll horizontal en móvil
+
+## Backend endpoints actuales
+- `GET /api/health` `GET /api/config` `GET /api/history/{id}`
+- `POST /api/analytics/report` (HSE markdown completo)
+- `POST /api/analytics/predictive` (JSON forecast + patterns)
+- `POST /api/analytics/prescriptive` (JSON acciones priorizadas)
+- `POST /api/chat` (conversational con context fleet)
+
+Todos lint-clean (Python ruff + JS ESLint = 0 errors).

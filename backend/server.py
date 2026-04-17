@@ -145,6 +145,16 @@ class AnalyticsInput(BaseModel):
     period: str = "turno actual"
 
 
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatInput(BaseModel):
+    messages: list[ChatMessage] = Field(default_factory=list)
+    context: dict[str, Any] = Field(default_factory=dict)  # fleet snapshot
+
+
 SYSTEM_PROMPT_HSE = """Eres un experto senior en HSE (Salud, Seguridad y Medio Ambiente) de la minería chilena.
 Conoces el DS594 MINSAL (exposición térmica y ambiental), la Ley 16.744, y las mejores prácticas de ICMM y el Consejo Minero.
 Tu tarea: generar reportes HSE accionables, concisos y en español, con recomendaciones priorizadas.
@@ -204,3 +214,146 @@ async def analytics_report(payload: AnalyticsInput) -> dict[str, Any]:
         "model": "gemini-2.5-flash",
         "session_id": session_id,
     }
+
+
+# ----------------------------------------------------------------- Chat IA --
+SYSTEM_PROMPT_CHAT = """Eres el Asistente HSE de Piramid CMI Command Center, experto en operación minera y seguridad.
+Tienes acceso al estado en tiempo real de la flota (cascos inteligentes), incluyendo posición GPS, batería, actividad,
+zona, alertas (man-down, geofence), exposición DS594, y datos históricos.
+
+Reglas:
+- Responde en español, conciso y directo (3-6 líneas máx, salvo que pidan detalle)
+- Usa los datos del JSON `context.fleet` para responder preguntas factuales
+- Cita IDs de casco (ej. CMI-003) y nombres cuando sea relevante
+- Si te preguntan ubicación → usa lat/lon del JSON
+- Si no hay datos suficientes, dilo explícitamente (no inventes)
+- Para recomendaciones, sé específico (responsable + plazo + acción)
+- Usa **negritas** para destacar nombres, IDs y métricas críticas
+- Si hay un man-down activo, menciónalo aunque no se pregunte
+"""
+
+
+@app.post("/api/chat")
+async def chat_ia(payload: ChatInput) -> dict[str, Any]:
+    """Conversational endpoint with fleet context. Stateless — frontend manages history."""
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY no configurada")
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="messages vacío")
+
+    # Build system message with fleet context inline (deterministic, no DB needed)
+    ctx_json = payload.context or {}
+    sys_msg = SYSTEM_PROMPT_CHAT + f"\n\n## Estado actual de la flota (JSON)\n```json\n{ctx_json}\n```\n"
+
+    session_id = f"chat-{uuid.uuid4().hex[:8]}"
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=sys_msg,
+    ).with_model("gemini", "gemini-2.5-flash")
+
+    # Replay conversation: send each message in order. Last user message gets the response.
+    last_user_text = ""
+    for m in payload.messages:
+        if m.role == "user":
+            last_user_text = m.content
+    if not last_user_text:
+        raise HTTPException(status_code=400, detail="último mensaje debe ser del usuario")
+
+    try:
+        response: str = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=last_user_text)),
+            timeout=40,
+        )
+    except asyncio.TimeoutError as err:
+        raise HTTPException(status_code=504, detail="Gemini timeout") from err
+    except Exception as err:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Gemini error: {err}") from err
+
+    return {
+        "reply": response,
+        "model": "gemini-2.5-flash",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ----------------------------------------------------------------- Predictive --
+@app.post("/api/analytics/predictive")
+async def predictive(payload: AnalyticsInput) -> dict[str, Any]:
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY no configurada")
+
+    sys = (
+        "Eres analista predictivo HSE. Devuelve SOLO JSON válido (sin markdown, sin texto extra) "
+        "con esta estructura exacta:\n"
+        '{"forecast_8h":[{"hour":"00:00","risk":0.0}],"peak_hour":"HH:MM","peak_risk":0.0,'
+        '"top_worker":{"id":"CMI-XXX","name":"...","reason":"..."},'
+        '"confidence":0.85,"patterns":[{"name":"...","impact":"alto|medio|bajo","note":"..."}]}'
+        "\nLa lista forecast_8h debe tener 8 entradas (próximas 8 horas). risk es 0-1."
+    )
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"pred-{uuid.uuid4().hex[:8]}",
+        system_message=sys,
+    ).with_model("gemini", "gemini-2.5-flash")
+
+    prompt = (
+        f"Analiza esta flota minera y predice riesgo de incidentes próximas 8h:\n"
+        f"FLOTA:\n{payload.fleet}\n\nINCIDENTES_RECIENTES:\n{payload.incidents}\n"
+        f"EXPOSICIÓN:\n{payload.exposure}\n\nResponde SOLO el JSON."
+    )
+
+    try:
+        raw: str = await asyncio.wait_for(
+            chat.send_message(UserMessage(text=prompt)),
+            timeout=40,
+        )
+    except Exception as err:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Gemini error: {err}") from err
+
+    import json as _json
+    import re as _re
+    # Try to extract JSON from response (Gemini sometimes wraps in ```json ... ```)
+    text = raw.strip()
+    m = _re.search(r"\{.*\}", text, _re.DOTALL)
+    try:
+        data = _json.loads(m.group(0)) if m else _json.loads(text)
+    except Exception:  # noqa: BLE001
+        data = {"raw": raw, "error": "JSON parsing failed"}
+
+    return {**data, "model": "gemini-2.5-flash"}
+
+
+# ----------------------------------------------------------------- Prescriptive --
+@app.post("/api/analytics/prescriptive")
+async def prescriptive(payload: AnalyticsInput) -> dict[str, Any]:
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY no configurada")
+
+    sys = (
+        "Eres analista prescriptivo HSE minero. Devuelve SOLO JSON válido sin markdown:\n"
+        '{"actions":[{"priority":"alta|media|baja","action":"...","responsible":"...","deadline":"..."}]}\n'
+        "Genera 5-7 acciones concretas y accionables, ordenadas por prioridad."
+    )
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"presc-{uuid.uuid4().hex[:8]}",
+        system_message=sys,
+    ).with_model("gemini", "gemini-2.5-flash")
+    prompt = f"Datos:\n{payload.fleet}\nIncidentes:\n{payload.incidents}\nExposición:\n{payload.exposure}\nResponde SOLO JSON."
+    try:
+        raw: str = await asyncio.wait_for(chat.send_message(UserMessage(text=prompt)), timeout=40)
+    except Exception as err:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Gemini error: {err}") from err
+    import json as _json
+    import re as _re
+    m = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    try:
+        data = _json.loads(m.group(0)) if m else {"actions": []}
+    except Exception:  # noqa: BLE001
+        data = {"actions": [], "raw": raw}
+    return {**data, "model": "gemini-2.5-flash"}

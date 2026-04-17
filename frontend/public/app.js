@@ -20,7 +20,7 @@
     },
     storageKey: 'cmi.prefs.v1',
     logMax: 80,
-    mineCenter: { lat: -27.3668, lon: -70.3322 },
+    mineCenter: { lat: -27.35762, lon: -70.35330 },  // UDA Geología, Copiapó (Luis)
   };
 
   async function loadRuntimeConfig() {
@@ -149,6 +149,8 @@
 
     State.workers = names.map((nm, i) => {
       const st = i === 5 ? 'cr' : (i === 2 ? 'wr' : 'ok');
+      // Luis Campusano (i=0) GPS reales: Depto. Geología UDA, Copiapó
+      const luisLat = '-27.35762', luisLon = '-70.35330';
       return {
         id: `CMI-00${i + 1}`,
         nm, rl: roles[i], zn: zones[i],
@@ -157,14 +159,16 @@
         r: 0, y: 0,
         ac: i === 0 ? 0 : (i === 5 ? 2.1 : 9.5 + Math.random()),
         act: i === 0 ? 'desconocido' : (i === 5 ? 'quieto' : acts[i % 3]),
-        lat: i === 0 ? '' : (-27.366 - i * 0.003).toFixed(4),
-        lon: i === 0 ? '' : (-70.332 - i * 0.002).toFixed(4),
+        lat: i === 0 ? luisLat : (-27.366 - i * 0.003).toFixed(4),
+        lon: i === 0 ? luisLon : (-70.332 - i * 0.002).toFixed(4),
         mdw: i === 5,
-        gF: i !== 0,
+        gF: i === 0 ? true : i !== 0,
         ts: Date.now() - (i === 5 ? 30000 : 0),
-        re: i === 0,  // real-time (receives MQTT)
+        re: i === 0,
         fw: 'v11.0-C6',
-        gS: '', gH: '', gA: '', gU: '', gFC: 0,
+        gS: i === 0 ? '12' : '', gH: i === 0 ? '0.8' : '', gA: i === 0 ? '385m' : '',
+        gU: '', gFC: i === 0 ? 142 : 0,
+        loc: i === 0 ? 'Depto. Geología · UDA Copiapó' : `Mina · Zona ${zones[i]}`,
       };
     });
   }
@@ -878,6 +882,20 @@
     $('soundBtn').addEventListener('click', () => Audio.toggle());
     // Analytics report
     $('genReportBtn').addEventListener('click', () => Analytics.generateReport());
+    // Subtabs
+    $$('.subtab').forEach((b) => b.addEventListener('click', () => setSubtab(b.dataset.sub)));
+    // Predictive / Prescriptive
+    $('genPredBtn').addEventListener('click', () => Predictive.generate());
+    $('genPrescBtn').addEventListener('click', () => Prescriptive.generate());
+    // Logs filter
+    $('logFilter').addEventListener('change', (e) => HistLogs.render(e.target.value));
+    // Chat
+    $('chatSendBtn').addEventListener('click', () => Chat.send($('chatInput').value));
+    $('chatInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); Chat.send(e.target.value); }
+    });
+    $('chatClearBtn').addEventListener('click', () => Chat.clear());
+    $$('.chip-sug').forEach((b) => b.addEventListener('click', () => Chat.send(b.dataset.q)));
 
     // Event delegation for dynamic content
     document.body.addEventListener('click', (e) => {
@@ -1461,6 +1479,305 @@
       renderAllDebounced();
     },
   };
+
+  // =========================================================================
+  //                              CHAT IA
+  // =========================================================================
+  const Chat = {
+    history: [],
+
+    push(role, content) { this.history.push({ role, content }); },
+
+    snapshot() {
+      return {
+        timestamp: new Date().toISOString(),
+        fleet: State.workers.map((w) => ({
+          id: w.id, nombre: w.nm, rol: w.rl, zona: w.zn,
+          estado: w.st, man_down: w.mdw, bateria: w.bat,
+          actividad: actEs(w.act), ubicacion: w.loc || '',
+          gps: w.lat ? `${w.lat}, ${w.lon}` : 'sin fix',
+          pitch: Math.round(w.p), accel: +w.ac.toFixed(2),
+        })),
+        evac_active: State.evacActive,
+        mqtt_live: State.mqtt.connected,
+      };
+    },
+
+    renderMessages() {
+      const box = $('chatMessages');
+      const welcome = box.querySelector('.chat-msg-ai:first-child');
+      const welcomeHTML = welcome ? welcome.outerHTML : '';
+      box.innerHTML = welcomeHTML;
+      this.history.forEach((m) => box.appendChild(this.bubble(m.role, m.content)));
+      box.scrollTop = box.scrollHeight;
+    },
+
+    bubble(role, content) {
+      const el = document.createElement('div');
+      el.className = 'chat-msg chat-msg-' + (role === 'user' ? 'user' : 'ai');
+      const av = role === 'user' ? 'TÚ' : 'AI';
+      const avCls = role === 'user' ? 'chat-avatar-user' : 'chat-avatar-ai';
+      el.innerHTML = `<div class="chat-avatar ${avCls}">${av}</div><div class="chat-bubble">${this.fmt(content)}</div>`;
+      return el;
+    },
+
+    fmt(text) {
+      let s = h(text);
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+      const lines = s.split('\n');
+      let out = '', inUL = false;
+      for (const line of lines) {
+        if (/^\s*[-*]\s+/.test(line)) {
+          if (!inUL) { out += '<ul>'; inUL = true; }
+          out += `<li>${line.replace(/^\s*[-*]\s+/, '')}</li>`;
+        } else {
+          if (inUL) { out += '</ul>'; inUL = false; }
+          if (line.trim()) out += line + '<br>';
+        }
+      }
+      if (inUL) out += '</ul>';
+      return out;
+    },
+
+    showTyping() {
+      const box = $('chatMessages');
+      const el = document.createElement('div');
+      el.id = 'chat-typing-indicator';
+      el.className = 'chat-msg chat-msg-ai';
+      el.innerHTML = `<div class="chat-avatar chat-avatar-ai">AI</div><div class="chat-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
+      box.appendChild(el);
+      box.scrollTop = box.scrollHeight;
+    },
+
+    hideTyping() {
+      const el = $('chat-typing-indicator');
+      if (el) el.remove();
+    },
+
+    async send(text) {
+      text = (text || '').trim();
+      if (!text) return;
+      this.push('user', text);
+      this.renderMessages();
+      $('chatInput').value = '';
+      $('chatSendBtn').disabled = true;
+      this.showTyping();
+
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: this.history, context: this.snapshot() }),
+        });
+        const data = await r.json();
+        this.hideTyping();
+        if (!r.ok) throw new Error(data.detail || 'HTTP ' + r.status);
+        this.push('assistant', data.reply);
+        this.renderMessages();
+      } catch (e) {
+        this.hideTyping();
+        this.push('assistant', '⚠ Error: ' + e.message);
+        this.renderMessages();
+      } finally {
+        $('chatSendBtn').disabled = false;
+        $('chatInput').focus();
+      }
+    },
+
+    clear() { this.history = []; this.renderMessages(); },
+  };
+
+  // =========================================================================
+  //                          PREDICTIVE & PRESCRIPTIVE
+  // =========================================================================
+  const Predictive = {
+    async generate() {
+      const btn = $('genPredBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="btn-ico">⏳</span><span>Analizando…</span>';
+      try {
+        const r = await fetch('/api/analytics/predictive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fleet: Chat.snapshot().fleet, incidents: [], exposure: [], period: '24h' }),
+        });
+        const data = await r.json();
+        this.render(data);
+        toast('ok', 'Predicción generada', `Pico de riesgo: ${data.peak_hour || '—'}`);
+      } catch (e) {
+        toast('cr', 'Error predicción', e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-ico">✦</span><span>Recalcular con IA</span>';
+      }
+    },
+    render(data) {
+      $('predPeak').textContent = data.peak_hour || '—';
+      $('predWorker').textContent = data.top_worker?.name || '—';
+      $('predConf').textContent = data.confidence ? Math.round(data.confidence * 100) + '%' : '—';
+      this.drawForecast(data.forecast_8h || []);
+      const pats = data.patterns || [];
+      $('predPatterns').innerHTML = pats.length
+        ? pats.map((p) => {
+            const cls = p.impact === 'alto' ? 'cr' : p.impact === 'medio' ? 'wr' : 'bl';
+            return `<div class="pattern-row">
+              <span class="chip chip-${cls}">${h(p.impact || 'medio').toUpperCase()}</span>
+              <div><strong style="color:var(--tx-0)">${h(p.name)}</strong><br><span style="color:var(--tx-2);font-size:12px">${h(p.note || '')}</span></div>
+              <span class="pattern-conf" style="color:var(--${cls})">${p.impact || ''}</span>
+            </div>`;
+          }).join('')
+        : '<div class="empty-state">Sin patrones detectados</div>';
+    },
+    drawForecast(data) {
+      const el = $('chForecast');
+      if (!el || !data.length) return;
+      const css = getComputedStyle(document.documentElement);
+      const cOk = css.getPropertyValue('--ok').trim();
+      const cWr = css.getPropertyValue('--wr').trim();
+      const cCr = css.getPropertyValue('--cr').trim();
+      const cMute = css.getPropertyValue('--tx-3').trim();
+      const ratio = window.devicePixelRatio || 1;
+      const w = el.clientWidth || 800, ht = 220;
+      if (el.width !== w * ratio) { el.width = w * ratio; el.height = ht * ratio; }
+      const ctx = el.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, w, ht);
+      const padL = 50, padB = 28, padT = 14;
+      const chartH = ht - padB - padT;
+      ctx.strokeStyle = css.getPropertyValue('--bg-3').trim();
+      ctx.lineWidth = 1;
+      [0, .25, .5, .75, 1].forEach((p) => {
+        const y = padT + chartH * (1 - p);
+        ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - 10, y); ctx.stroke();
+        ctx.fillStyle = cMute; ctx.font = '10px "JetBrains Mono"';
+        ctx.textAlign = 'right'; ctx.fillText((p * 100) + '%', padL - 8, y + 3);
+      });
+      const colW = (w - padL - 20) / data.length;
+      data.forEach((d, i) => {
+        const x = padL + i * colW + 6;
+        const r = +d.risk || 0;
+        const bh = r * chartH;
+        const y = padT + chartH - bh;
+        const c = r > 0.66 ? cCr : r > 0.33 ? cWr : cOk;
+        const grad = ctx.createLinearGradient(0, y, 0, y + bh);
+        grad.addColorStop(0, c); grad.addColorStop(1, c + '50');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, colW - 12, bh);
+        ctx.fillStyle = c;
+        ctx.font = '700 11px "JetBrains Mono"';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.round(r * 100) + '', x + (colW - 12) / 2, y - 5);
+        ctx.fillStyle = cMute;
+        ctx.font = '10px "JetBrains Mono"';
+        ctx.fillText(d.hour || '', x + (colW - 12) / 2, ht - 10);
+      });
+    },
+  };
+
+  const Prescriptive = {
+    async generate() {
+      const btn = $('genPrescBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="btn-ico">⏳</span><span>Generando…</span>';
+      try {
+        const r = await fetch('/api/analytics/prescriptive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fleet: Chat.snapshot().fleet, incidents: [], exposure: [] }),
+        });
+        const data = await r.json();
+        const actions = data.actions || [];
+        $('prescActions').innerHTML = actions.length
+          ? actions.map((a, i) => {
+              const pri = (a.priority || 'media').toLowerCase();
+              const cls = pri === 'alta' ? 'h' : pri === 'baja' ? 'l' : 'm';
+              return `<div class="action-card">
+                <div class="action-num">${i + 1}</div>
+                <div class="action-body">
+                  <strong>${h(a.action || '')}</strong>
+                  <span>👤 ${h(a.responsible || '—')} · 🕐 ${h(a.deadline || '—')}</span>
+                </div>
+                <span class="action-priority action-priority-${cls}">${pri.toUpperCase()}</span>
+              </div>`;
+            }).join('')
+          : '<div class="empty-state">Sin acciones generadas</div>';
+        toast('ok', 'Acciones generadas', `${actions.length} recomendaciones por Gemini`);
+      } catch (e) {
+        toast('cr', 'Error', e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-ico">⚡</span><span>Regenerar</span>';
+      }
+    },
+  };
+
+  // =========================================================================
+  //                         HISTORIC LOGS (30 days, mock)
+  // =========================================================================
+  const HistLogs = {
+    data: [],
+    seed() {
+      const types = [
+        { t: 'cr', tag: 'MAN-DOWN',   tpl: 'Caída detectada · {worker} ({id}) · pitch {pitch}° · Zona {zn}' },
+        { t: 'wr', tag: 'GEOFENCE',   tpl: 'Trabajador {worker} entró a zona restringida {zn}' },
+        { t: 'wr', tag: 'BATERÍA',    tpl: 'Batería bajo umbral en {id} ({worker}) · {bat}%' },
+        { t: 'ok', tag: 'COMANDO',    tpl: 'Supervisor envió comando "{cmd}" a {id}' },
+        { t: 'ok', tag: 'CONEXIÓN',   tpl: '{id} reconectado a HiveMQ · LTE Cat1 · CSQ 18' },
+        { t: 'cr', tag: 'EVACUACIÓN', tpl: 'Evacuación activada · SOS broadcast a 8 cascos' },
+        { t: 'wr', tag: 'TRONADURA',  tpl: 'Aviso de tronadura programada · Nivel-3 · {worker} confirmado' },
+        { t: 'ok', tag: 'TURNO',      tpl: 'Inicio de turno · {worker} ({id}) en posición · Zona {zn}' },
+        { t: 'bl', tag: 'GPS',        tpl: 'GPS fix obtenido en {id} · sats=12 · HDOP 0.8' },
+        { t: 'ok', tag: 'ACK',        tpl: 'Reconocimiento man-down · {id} · operador respondió OK' },
+      ];
+      const cmds = ['default', 'signal', 'gps_on', 'recover', 'status'];
+      const events = [];
+      const now = Date.now();
+      for (let d = 0; d < 30; d++) {
+        const eventsToday = 5 + Math.floor(Math.random() * 8);
+        for (let e = 0; e < eventsToday; e++) {
+          const tt = types[Math.floor(Math.random() * types.length)];
+          const w = State.workers[Math.floor(Math.random() * State.workers.length)];
+          const ts = now - d * 86400000 - Math.random() * 86400000;
+          const msg = tt.tpl
+            .replace('{worker}', w.nm).replace('{id}', w.id).replace('{zn}', w.zn)
+            .replace('{pitch}', String(40 + Math.floor(Math.random() * 30)))
+            .replace('{bat}', String(15 + Math.floor(Math.random() * 15)))
+            .replace('{cmd}', cmds[Math.floor(Math.random() * cmds.length)]);
+          events.push({ ts, t: tt.t, tag: tt.tag, msg, worker: w.nm });
+        }
+      }
+      this.data = events.sort((a, b) => b.ts - a.ts);
+    },
+    render(filter = 'all') {
+      const list = filter === 'all' ? this.data : this.data.filter((e) => e.t === filter);
+      const el = $('histLogs');
+      if (!list.length) { el.innerHTML = '<div class="empty-state">Sin eventos</div>'; return; }
+      el.innerHTML = list.slice(0, 200).map((e) => {
+        const date = new Date(e.ts);
+        const day = date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+        const time = date.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+        return `<div class="log-entry">
+          <div class="log-time">${day}<br>${time}</div>
+          <span class="log-tag log-tag-${e.t}">${e.tag}</span>
+          <div class="log-msg">${h(e.msg)}<span class="log-meta">${h(e.worker)}</span></div>
+        </div>`;
+      }).join('');
+    },
+  };
+
+  function setSubtab(name) {
+    $$('.subtab').forEach((b) => b.classList.toggle('is-on', b.dataset.sub === name));
+    $$('.subview').forEach((v) => {
+      const isOn = v.id === 'sub-' + name;
+      v.classList.toggle('is-on', isOn);
+      v.hidden = !isOn;
+    });
+    if (name === 'logs' && !HistLogs.data.length) { HistLogs.seed(); HistLogs.render(); }
+    if (name === 'chat') setTimeout(() => $('chatInput').focus(), 50);
+  }
+
 
 
   async function init() {
