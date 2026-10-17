@@ -1,0 +1,18 @@
+{
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+    },
+    "addy-agent-skills": {
+      "source": { "source": "github", "repo": "addyosmani/agent-skills" }
+    },
+    "omniroute-claude-plugin": {
+      "source": { "source": "github", "repo": "projectsaibg/omniroute-claude-plugin" }
+    }
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true,
+    "agent-skills@addy-agent-skills": true,
+    "omniroute@omniroute-claude-plugin": true
+  }
+}
